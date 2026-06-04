@@ -1,13 +1,15 @@
 import express, { type Express } from "express";
 import path from "node:path";
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
-const dashboardDist = path.resolve(process.cwd(), "artifacts/dashboard/dist");
+const appDir = path.dirname(fileURLToPath(import.meta.url));
+const dashboardDist = path.resolve(appDir, "../../dashboard/dist");
 
 app.use(
   pinoHttp({
