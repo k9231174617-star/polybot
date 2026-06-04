@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetBotStatus, getGetBotStatusQueryKey, useControlBot } from "@workspace/api-client-react";
-import { Play, Square, Pause, Activity, LineChart, Table2, Radar, ArrowLeftRight, ShieldAlert, Settings, FlaskConical, Menu } from "lucide-react";
+import { Play, Square, Pause, Activity, LineChart, Table2, Radar, ArrowLeftRight, ShieldAlert, Settings, FlaskConical, Menu, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -22,6 +22,7 @@ export function Layout({ children }: { children: ReactNode }) {
     { href: "/trades", label: t("nav_trades"), icon: ArrowLeftRight },
     { href: "/risk", label: t("nav_risk"), icon: ShieldAlert },
     { href: "/paper", label: t("nav_paper"), icon: FlaskConical },
+    { href: "/strategies", label: t("nav_strategies"), icon: BarChart3 },
     { href: "/settings", label: t("nav_settings"), icon: Settings },
   ];
 

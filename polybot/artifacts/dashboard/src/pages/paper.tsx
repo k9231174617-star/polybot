@@ -24,6 +24,8 @@ const SIGNAL_COLORS: Record<string, string> = {
   cross_market_arb: "hsl(142 71% 45%)",
   sentiment_lag: "hsl(280 70% 60%)",
   implied_prob: "hsl(200 70% 55%)",
+  roda_oracle_lag: "hsl(30 90% 55%)",
+  lch_cascade: "hsl(0 72% 60%)",
 };
 
 function StatCard({ label, value, sub, positive }: {

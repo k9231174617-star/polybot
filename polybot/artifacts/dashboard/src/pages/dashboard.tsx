@@ -41,6 +41,8 @@ function SignalTypeBadge({ type }: { type: string }) {
     momentum: "MOM",
     sentiment_lag: "SENT",
     implied_prob: "IMP",
+    roda_oracle_lag: "RODA",
+    lch_cascade: "LCH",
   };
   return (
     <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">

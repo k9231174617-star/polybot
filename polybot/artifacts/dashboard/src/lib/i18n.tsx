@@ -11,6 +11,7 @@ export const translations = {
     nav_signals: "Signals",
     nav_trades: "Trades",
     nav_risk: "Risk",
+    nav_strategies: "Strategies",
     nav_settings: "Settings",
 
     // Status
@@ -176,6 +177,28 @@ export const translations = {
     no_paper_trades: "No paper trades yet",
     paper_signal_type: "Signal Type",
 
+    // Strategies page
+    strategies_title: "Strategy Lab",
+    strategies_subtitle: "Track realized performance, active signals, and open exposure across every strategy.",
+    strategies_note: "Historical P&L is derived from paper trading; active queue data is from live signals.",
+    strategy_total_pnl: "Total P&L",
+    best_strategy: "Best Strategy",
+    strategy_leaderboard: "Leaderboard",
+    strategy_pnl_chart: "P&L by Strategy",
+    strategy_status: "Strategy Activity",
+    strategy_pending_signals: "Pending Signals",
+    strategy_live_queue: "Live queue",
+    strategy_open_exposure: "Open Exposure",
+    strategy_best_wr: "Best WR",
+    strategy_win_rate: "Win Rate",
+    strategy_trades: "Trades",
+    strategy_open_positions: "Open Positions",
+    strategy_avg_edge: "Avg Edge",
+    strategy_avg_confidence: "Avg Confidence",
+    strategy_source_note: "Paper trades drive the historical ranking.",
+    recent_signals: "recent signals",
+    no_strategies: "No strategy data yet",
+
     // Settings paper section
     paper_trading_section: "Paper Trading",
     paper_trading_toggle: "Paper Trading Mode",
@@ -191,6 +214,7 @@ export const translations = {
     nav_signals: "Сигналы",
     nav_trades: "Сделки",
     nav_risk: "Риски",
+    nav_strategies: "Стратегии",
     nav_settings: "Настройки",
 
     // Status
@@ -355,6 +379,28 @@ export const translations = {
     no_paper_positions: "Нет открытых бумажных позиций",
     no_paper_trades: "Бумажных сделок пока нет",
     paper_signal_type: "Тип сигнала",
+
+    // Strategies page
+    strategies_title: "Стратегии",
+    strategies_subtitle: "Отслеживай реализованный P&L, активные сигналы и открытую экспозицию по каждой стратегии.",
+    strategies_note: "Исторический P&L строится по бумажной торговле; активная очередь берётся из live-сигналов.",
+    strategy_total_pnl: "Итоговый P&L",
+    best_strategy: "Лучшая стратегия",
+    strategy_leaderboard: "Таблица лидеров",
+    strategy_pnl_chart: "P&L по стратегиям",
+    strategy_status: "Активность стратегий",
+    strategy_pending_signals: "Ожидающих сигналов",
+    strategy_live_queue: "Очередь live",
+    strategy_open_exposure: "Открытая экспозиция",
+    strategy_best_wr: "Лучший винрейт",
+    strategy_win_rate: "Винрейт",
+    strategy_trades: "Сделок",
+    strategy_open_positions: "Открытых позиций",
+    strategy_avg_edge: "Средний edge",
+    strategy_avg_confidence: "Средняя уверенность",
+    strategy_source_note: "Исторический рейтинг строится по бумажным сделкам.",
+    recent_signals: "последние сигналы",
+    no_strategies: "Пока нет данных по стратегиям",
 
     // Settings paper section
     paper_trading_section: "Бумажная торговля",

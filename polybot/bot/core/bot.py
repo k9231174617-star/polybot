@@ -10,6 +10,7 @@ from bot.analytics.engine import AnalyticsEngine
 from bot.analytics.calibration import load_calibration
 from bot.analytics.arbitrage import find_all_arb_signals
 from bot.analytics.roda import detect_roda_signals
+from bot.analytics.lch import LchDetector
 from bot.execution.orders import OrderExecutor
 from bot.execution.paper import PaperExecutor
 from bot.risk.manager import RiskManager
@@ -30,6 +31,7 @@ class PolymarketBot:
         self.scan_count = 0
         self._shutdown_event = asyncio.Event()
         self._paper: PaperExecutor | None = None
+        self.lch_detector = LchDetector()
 
     async def start(self):
         logger.info("Starting Polymarket bot...")
@@ -79,6 +81,35 @@ class PolymarketBot:
             except asyncio.TimeoutError:
                 pass
 
+    async def _attempt_signal(self, signal: dict, config: dict, risk_mgr: RiskManager, paper_on: bool, label: str = "") -> bool:
+        try:
+            can_trade, reason = await risk_mgr.can_trade(signal)
+            if not can_trade:
+                if label:
+                    logger.info(f"{label} skipped {signal['market_id']}: {reason}")
+                else:
+                    logger.info(f"Signal skipped {signal['market_id']}: {reason}")
+                return False
+
+            sig_id = await insert_signal(signal)
+            logger.info(
+                f"{label or 'Signal'} #{sig_id} {signal['direction']} "
+                f"edge={signal['edge']:.3f} kelly=${signal['kelly_size_usd']:.2f} "
+                f"type={signal['signal_type']} conf={signal.get('confidence', 0.0):.2f}"
+            )
+            trade = None
+            if paper_on and self._paper:
+                trade = await self._paper.execute_signal(signal)
+            else:
+                trade = await self.executor.execute_signal(signal, config)
+            if trade:
+                await self._mark_acted(sig_id)
+                return True
+            return False
+        except Exception as e:
+            logger.warning(f"{label or 'Signal'} error: {e}")
+            return False
+
     async def scan_cycle(self, config: dict):
         paper_on = config.get("paper_trading", True)
         capital = config.get("paper_capital_usd", 1000.0) if paper_on else settings.initial_capital_usd
@@ -88,7 +119,6 @@ class PolymarketBot:
             self._paper = PaperExecutor(capital)
             logger.info(f"Paper trading active: ${capital:.0f} virtual capital")
 
-        # Dynamic Kelly
         if paper_on and self._paper:
             paper_stats = await self._paper.get_stats()
             cur_pnl = paper_stats["cumulative_pnl"]
@@ -105,6 +135,7 @@ class PolymarketBot:
         signals_found = 0
         markets_scanned = 0
         all_markets: list[dict] = []
+        strategic_market_ids: set[str] = set()
 
         roda_config = {
             **config,
@@ -117,13 +148,29 @@ class PolymarketBot:
             "roda_hold_window_hours": settings.roda_hold_window_hours,
             "roda_max_position_pct": settings.roda_max_position_pct,
         }
+        lch_config = {
+            **config,
+            "lch_enabled": settings.lch_enabled,
+            "lch_min_hours_to_resolve": settings.lch_min_hours_to_resolve,
+            "lch_lookback_hours": settings.lch_lookback_hours,
+            "lch_min_shock_magnitude": settings.lch_min_shock_magnitude,
+            "lch_min_z_score": settings.lch_min_z_score,
+            "lch_min_recovery_probability": settings.lch_min_recovery_probability,
+            "lch_stop_loss_pct": settings.lch_stop_loss_pct,
+            "lch_take_profit_pct_of_shock": settings.lch_take_profit_pct_of_shock,
+            "lch_max_hold_minutes": settings.lch_max_hold_minutes,
+            "lch_max_position_pct": settings.lch_max_position_pct,
+            "lch_kelly_fraction": settings.lch_kelly_fraction,
+            "lch_min_position_size_usd": settings.lch_min_position_size_usd,
+            "lch_max_position_size_usd": settings.lch_max_position_size_usd,
+            "lch_max_daily_trades": settings.lch_max_daily_trades,
+        }
 
         async with PolymarketClient() as client:
             raw_list = await client.get_active_markets(limit=min(settings.max_markets_to_scan, 100))
             parsed = [client.parse_market(r) for r in raw_list]
             valid = [m for m in parsed if m.get("id")]
 
-            # Batch sentiment (concurrent)
             sentiment_map = await batch_sentiment(valid, api_key=settings.news_api_key)
 
             market_prices: dict[str, float] = {}
@@ -134,30 +181,21 @@ class PolymarketBot:
                 kelly_fraction=dyn_kelly,
                 total_capital=capital,
             )
-            roda_market_ids: set[str] = set()
             for signal in roda_signals:
-                try:
-                    can_trade, reason = await risk_mgr.can_trade(signal)
-                    if not can_trade:
-                        logger.info(f"RODA skipped {signal['market_id']}: {reason}")
-                        continue
-                    sig_id = await insert_signal(signal)
-                    logger.info(
-                        f"RODA signal #{sig_id} {signal['direction']} edge={signal['edge']:.3f} "
-                        f"kelly=${signal['kelly_size_usd']:.2f} conf={signal['confidence']:.2f} "
-                        f"age={signal.get('roda_age_hours', 0):.1f}h sources={signal.get('roda_source_count', 0)}"
-                    )
-                    trade = None
-                    if paper_on and self._paper:
-                        trade = await self._paper.execute_signal(signal)
-                    else:
-                        trade = await self.executor.execute_signal(signal, config)
-                    if trade:
-                        signals_found += 1
-                        roda_market_ids.add(signal['market_id'])
-                        await self._mark_acted(sig_id)
-                except Exception as e:
-                    logger.warning(f"RODA signal error: {e}")
+                if await self._attempt_signal(signal, config, risk_mgr, paper_on, label="RODA"):
+                    signals_found += 1
+                    strategic_market_ids.add(signal["market_id"])
+
+            lch_signals = await self.lch_detector.detect_signals(
+                valid,
+                config=lch_config,
+                kelly_fraction=settings.lch_kelly_fraction,
+                total_capital=capital,
+            )
+            for signal in lch_signals:
+                if await self._attempt_signal(signal, config, risk_mgr, paper_on, label="LCH"):
+                    signals_found += 1
+                    strategic_market_ids.add(signal["market_id"])
 
             for market in valid:
                 try:
@@ -165,7 +203,7 @@ class PolymarketBot:
                     markets_scanned += 1
                     all_markets.append(market)
                     await upsert_market(market)
-                    if market["id"] in roda_market_ids:
+                    if market["id"] in strategic_market_ids:
                         continue
 
                     sentiment = sentiment_map.get(market["id"], 0.0)
@@ -178,27 +216,11 @@ class PolymarketBot:
                         kelly_fraction_override=dyn_kelly,
                     )
 
-                    if signal:
-                        can_trade, reason = await risk_mgr.can_trade(signal)
-                        if can_trade:
-                            sig_id = await insert_signal(signal)
-                            logger.info(
-                                f"Signal #{sig_id} {signal['direction']} "
-                                f"edge={signal['edge']:.3f} kelly=${signal['kelly_size_usd']:.2f} "
-                                f"type={signal['signal_type']} kelly_frac={dyn_kelly:.2f}"
-                            )
-                            trade = None
-                            if paper_on and self._paper:
-                                trade = await self._paper.execute_signal(signal)
-                            else:
-                                trade = await self.executor.execute_signal(signal, config)
-                            if trade:
-                                signals_found += 1
-                                await self._mark_acted(sig_id)
+                    if signal and await self._attempt_signal(signal, config, risk_mgr, paper_on):
+                        signals_found += 1
                 except Exception as e:
                     logger.warning(f"Market processing error: {e}")
 
-            # Arb detection
             for arb_sig in find_all_arb_signals(all_markets, capital):
                 try:
                     arb_sig["kelly_size_usd"] = min(
@@ -209,16 +231,11 @@ class PolymarketBot:
                         capital * config.get("max_position_pct", 0.05),
                     )
                     arb_sig["confidence"] = min(0.85, abs(arb_sig["edge"]) * 3)
-                    if arb_sig["kelly_size_usd"] >= 1.0:
-                        can_trade, _ = await risk_mgr.can_trade(arb_sig)
-                        if can_trade:
-                            await insert_signal(arb_sig)
-                            if paper_on and self._paper:
-                                await self._paper.execute_signal(arb_sig)
+                    if arb_sig["kelly_size_usd"] >= 1.0 and await self._attempt_signal(arb_sig, config, risk_mgr, paper_on, label="ARB"):
+                        signals_found += 1
                 except Exception as e:
                     logger.debug(f"Arb signal error: {e}")
 
-            # Update positions
             if paper_on and self._paper:
                 await self._paper.update_positions(market_prices)
                 await self._paper.snapshot_pnl()

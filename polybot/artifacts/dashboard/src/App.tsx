@@ -13,6 +13,7 @@ const Signals = lazy(() => import("@/pages/signals"));
 const Trades = lazy(() => import("@/pages/trades"));
 const Risk = lazy(() => import("@/pages/risk"));
 const Paper = lazy(() => import("@/pages/paper"));
+const Strategies = lazy(() => import("@/pages/strategies"));
 const Settings = lazy(() => import("@/pages/settings"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
@@ -37,6 +38,7 @@ function Router() {
           <Route path="/trades" component={Trades} />
           <Route path="/risk" component={Risk} />
           <Route path="/paper" component={Paper} />
+          <Route path="/strategies" component={Strategies} />
           <Route path="/settings" component={Settings} />
           <Route component={NotFound} />
         </Switch>

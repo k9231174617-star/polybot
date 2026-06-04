@@ -19,6 +19,8 @@ def _token_price(side: str, yes_price: float) -> float:
 def _resolve_thresholds(signal_type: str) -> tuple[float, float]:
     if signal_type.startswith("roda_"):
         return 0.99, 0.01
+    if signal_type.startswith("lch_"):
+        return 0.97, 0.03
     return 0.95, 0.05
 
 

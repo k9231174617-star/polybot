@@ -12,6 +12,8 @@ const SIGNAL_LABELS: Record<string, string> = {
   momentum: "Momentum",
   sentiment_lag: "Sentiment Lag",
   implied_prob: "Implied Probability",
+  roda_oracle_lag: "RODA",
+  lch_cascade: "LCH Cascade",
 };
 
 export default function Signals() {
