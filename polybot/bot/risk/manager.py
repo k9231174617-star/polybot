@@ -4,9 +4,18 @@ from bot.utils.db import get_pool
 
 
 class RiskManager:
-    def __init__(self, config: dict, total_capital: float = 1000.0):
+    def __init__(self, config: dict, total_capital: float = 1000.0, paper_mode: bool = False):
         self.config = config
         self.total_capital = total_capital
+        self.paper_mode = paper_mode
+
+    @property
+    def position_table(self) -> str:
+        return "paper_positions" if self.paper_mode else "positions"
+
+    @property
+    def trade_table(self) -> str:
+        return "paper_trades" if self.paper_mode else "trades"
 
     async def check_daily_loss_limit(self) -> bool:
         """Returns True if trading can continue (within daily loss limit)."""
@@ -16,8 +25,8 @@ class RiskManager:
         pool = await get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
-                """SELECT COALESCE(SUM(realized_pnl), 0) as daily_pnl
-                   FROM trades
+                f"""SELECT COALESCE(SUM(realized_pnl), 0) as daily_pnl
+                   FROM {self.trade_table}
                    WHERE executed_at >= $1""",
                 today
             )
@@ -42,7 +51,7 @@ class RiskManager:
         pool = await get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT COALESCE(SUM(size_usd), 0) as total FROM positions WHERE status = 'open'"
+                f"SELECT COALESCE(SUM(size_usd), 0) as total FROM {self.position_table} WHERE status = 'open'"
             )
             current_deployed = float(row["total"] or 0)
 
@@ -57,7 +66,7 @@ class RiskManager:
         pool = await get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT id FROM positions WHERE market_id = $1 AND status = 'open'",
+                f"SELECT id FROM {self.position_table} WHERE market_id = $1 AND status = 'open'",
                 market_id
             )
             return row is None

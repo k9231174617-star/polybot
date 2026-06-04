@@ -14,7 +14,7 @@ from bot.execution.paper import PaperExecutor
 from bot.risk.manager import RiskManager
 from bot.risk.dynamic_kelly import KellyTracker
 from bot.utils.db import (
-    update_bot_state, upsert_market, insert_signal, log_entry,
+    ensure_schema, update_bot_state, upsert_market, insert_signal, log_entry,
     snapshot_pnl, get_bot_config, get_pool, close_pool,
 )
 
@@ -32,6 +32,7 @@ class PolymarketBot:
 
     async def start(self):
         logger.info("Starting Polymarket bot...")
+        await ensure_schema()
         self.running = True
         await update_bot_state("running", markets_scanned=0, pid=os.getpid())
         await log_entry("bot", "info", "Bot started", {
@@ -78,19 +79,23 @@ class PolymarketBot:
                 pass
 
     async def scan_cycle(self, config: dict):
-        capital = settings.initial_capital_usd
-        risk_mgr = RiskManager(config, capital)
-
-        # Init paper executor from DB config
         paper_on = config.get("paper_trading", True)
-        paper_cap = config.get("paper_capital_usd", 1000.0)
+        capital = config.get("paper_capital_usd", 1000.0) if paper_on else settings.initial_capital_usd
+        risk_mgr = RiskManager(config, capital, paper_mode=paper_on)
+
         if paper_on and self._paper is None:
-            self._paper = PaperExecutor(paper_cap)
-            logger.info(f"Paper trading active: ${paper_cap:.0f} virtual capital")
+            self._paper = PaperExecutor(capital)
+            logger.info(f"Paper trading active: ${capital:.0f} virtual capital")
 
         # Dynamic Kelly
-        cur_pnl = await self._total_pnl()
-        daily_pnl = await self._daily_pnl()
+        if paper_on and self._paper:
+            paper_stats = await self._paper.get_stats()
+            cur_pnl = paper_stats["cumulative_pnl"]
+            daily_pnl = paper_stats.get("today_realized_pnl", 0.0)
+        else:
+            cur_pnl = await self._total_pnl()
+            daily_pnl = await self._daily_pnl()
+
         daily_limit = capital * config.get("daily_loss_limit_pct", 0.03)
         self.kelly_tracker.base_fraction = config.get("kelly_fraction", 0.25)
         self.kelly_tracker.total_capital = capital
@@ -135,12 +140,14 @@ class PolymarketBot:
                                 f"edge={signal['edge']:.3f} kelly=${signal['kelly_size_usd']:.2f} "
                                 f"type={signal['signal_type']} kelly_frac={dyn_kelly:.2f}"
                             )
-                            trade = await self.executor.execute_signal(signal, config)
+                            trade = None
+                            if paper_on and self._paper:
+                                trade = await self._paper.execute_signal(signal)
+                            else:
+                                trade = await self.executor.execute_signal(signal, config)
                             if trade:
                                 signals_found += 1
                                 await self._mark_acted(sig_id)
-                            if paper_on and self._paper:
-                                await self._paper.execute_signal(signal)
                 except Exception as e:
                     logger.warning(f"Market processing error: {e}")
 
@@ -165,14 +172,15 @@ class PolymarketBot:
                     logger.debug(f"Arb signal error: {e}")
 
             # Update positions
-            await self.executor.update_positions(market_prices)
             if paper_on and self._paper:
                 await self._paper.update_positions(market_prices)
                 await self._paper.snapshot_pnl()
+            else:
+                await self.executor.update_positions(market_prices)
 
         self.scan_count += 1
         await update_bot_state("running", markets_scanned=markets_scanned)
-        pnl = await self._total_pnl()
+        pnl = cur_pnl if paper_on and self._paper else await self._total_pnl()
         await snapshot_pnl(pnl, capital + pnl)
         await log_entry("scanner", "info",
             f"Scan #{self.scan_count}: {markets_scanned} markets, {signals_found} signals, kelly={dyn_kelly:.2f}",

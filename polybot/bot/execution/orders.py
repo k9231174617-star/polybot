@@ -1,11 +1,14 @@
 """Order Execution — places orders on Polymarket CLOB (or simulates in dry-run mode)."""
-import asyncio
 import random
 from typing import Optional
 from loguru import logger
 
 from bot.config import settings
-from bot.utils.db import insert_trade, insert_signal, get_pool
+from bot.utils.db import insert_trade, get_pool
+
+
+def _token_price(side: str, yes_price: float) -> float:
+    return yes_price if side == "YES" else 1 - yes_price
 
 
 class OrderExecutor:
@@ -15,7 +18,7 @@ class OrderExecutor:
     async def execute_signal(self, signal: dict, config: dict) -> Optional[dict]:
         """
         Execute a trade based on a detected signal.
-        
+
         In dry_run mode: simulates execution with realistic slippage.
         In live mode: sends order to Polymarket CLOB.
         """
@@ -26,11 +29,7 @@ class OrderExecutor:
 
         # Simulate realistic slippage (0.1% - 0.5%)
         slippage_pct = random.uniform(0.001, 0.005)
-        if direction == "YES":
-            exec_price = market_price * (1 + slippage_pct)
-        else:
-            exec_price = (1 - market_price) * (1 + slippage_pct)
-
+        exec_price = _token_price(direction, market_price) * (1 + slippage_pct)
         exec_price = min(0.99, max(0.01, exec_price))
 
         # Fee: Polymarket charges 2% on resale but not on entry
@@ -109,17 +108,12 @@ class OrderExecutor:
                 "SELECT id, market_id, side, size_usd, entry_price FROM positions WHERE status = 'open'"
             )
             for row in rows:
-                current_price = market_prices.get(row["market_id"])
-                if current_price is None:
+                current_yes_price = market_prices.get(row["market_id"])
+                if current_yes_price is None:
                     continue
 
-                if row["side"] == "YES":
-                    pnl = (current_price - row["entry_price"]) * row["size_usd"] / row["entry_price"]
-                else:
-                    no_entry = 1 - row["entry_price"]
-                    no_current = 1 - current_price
-                    pnl = (no_current - no_entry) * row["size_usd"] / no_entry
-
+                current_token_price = _token_price(row["side"], current_yes_price)
+                pnl = (current_token_price - row["entry_price"]) * row["size_usd"] / row["entry_price"]
                 pnl_pct = pnl / row["size_usd"] if row["size_usd"] > 0 else 0
 
                 await conn.execute("""
@@ -128,4 +122,4 @@ class OrderExecutor:
                         unrealized_pnl = $2,
                         unrealized_pnl_pct = $3
                     WHERE id = $4
-                """, current_price, pnl, pnl_pct * 100, row["id"])
+                """, current_token_price, pnl, pnl_pct * 100, row["id"])

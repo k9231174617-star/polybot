@@ -16,4 +16,3 @@ sqlalchemy==2.0.30
 alembic==1.13.1
 loguru==0.7.2
 tenacity==8.3.0
-py_clob_client==0.19.1

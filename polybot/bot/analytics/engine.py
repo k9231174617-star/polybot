@@ -4,7 +4,6 @@ Integrates: historical calibration, sentiment, cross-market arb, dynamic Kelly.
 """
 import math
 from typing import Optional
-from loguru import logger
 
 from bot.analytics.calibration import get_calibration
 
@@ -58,16 +57,21 @@ class AnalyticsEngine:
         self, edge: float, model_prob: float, market_price: float,
         total_capital: float, kelly_fraction: float = 0.25,
     ) -> float:
-        if edge <= 0 or model_prob <= 0 or market_price <= 0:
+        if model_prob <= 0 or market_price <= 0 or market_price >= 1:
             return 0.0
+
         if edge > 0:
             b = (1 - market_price) / market_price
             p, q = model_prob, 1 - model_prob
         else:
             b = market_price / (1 - market_price)
             p, q = 1 - model_prob, model_prob
+
+        if b <= 0:
+            return 0.0
+
         full_kelly = (b * p - q) / b
-        return max(0, full_kelly) * kelly_fraction * total_capital
+        return max(0.0, full_kelly) * kelly_fraction * total_capital
 
     def detect_signal_type(self, market: dict, edge: float, sentiment: float = 0.0) -> str:
         if abs(sentiment) > 0.3:

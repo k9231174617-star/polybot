@@ -12,6 +12,10 @@ from loguru import logger
 from bot.utils.db import get_pool, log_entry
 
 
+def _token_price(side: str, yes_price: float) -> float:
+    return yes_price if side == "YES" else 1 - yes_price
+
+
 class PaperExecutor:
     def __init__(self, capital_usd: float = 1000.0):
         self.capital_usd = capital_usd
@@ -28,9 +32,10 @@ class PaperExecutor:
                 return None
 
         slippage = random.uniform(0.001, 0.004)
-        mp = signal["market_price"]
+        yes_price = signal["market_price"]
         d = signal["direction"]
-        exec_price = max(0.01, min(0.99, mp * (1 + slippage) if d == "YES" else (1 - mp) * (1 + slippage)))
+        exec_price = _token_price(d, yes_price)
+        exec_price = max(0.01, min(0.99, exec_price * (1 + slippage)))
         size = signal["kelly_size_usd"]
         fee = size * 0.002
 
@@ -40,7 +45,7 @@ class PaperExecutor:
                   (market_id, market_question, side, action, size_usd, price, slippage, fee_usd, realized_pnl, signal_type)
                 VALUES ($1,$2,$3,'buy',$4,$5,$6,$7,NULL,$8) RETURNING id
             """, signal["market_id"], signal["market_question"], d, size,
-                exec_price, slippage, fee, signal.get("signal_type","price_discrepancy"))
+                exec_price, slippage, fee, signal.get("signal_type", "price_discrepancy"))
 
             await conn.execute("""
                 INSERT INTO paper_positions
@@ -49,7 +54,7 @@ class PaperExecutor:
                 VALUES ($1,$2,$3,$4,$5,$5,0,0,$6,$7,$8)
             """, signal["market_id"], signal["market_question"], d, size,
                 exec_price, signal["edge"],
-                signal.get("signal_type","price_discrepancy"), signal.get("confidence", 0.5))
+                signal.get("signal_type", "price_discrepancy"), signal.get("confidence", 0.5))
 
         logger.info(f"[PAPER] {d} ${size:.2f} @ {exec_price:.3f} edge={signal['edge']:.3f}")
         await log_entry("paper", "info",
@@ -65,41 +70,34 @@ class PaperExecutor:
                 "SELECT id, market_id, side, size_usd, entry_price FROM paper_positions WHERE status='open'"
             )
             for row in rows:
-                price = market_prices.get(row["market_id"])
-                if price is None:
+                yes_price = market_prices.get(row["market_id"])
+                if yes_price is None:
                     continue
 
-                if row["side"] == "YES":
-                    pnl = (price - row["entry_price"]) * row["size_usd"] / row["entry_price"]
-                else:
-                    ne = 1 - row["entry_price"]
-                    pnl = ((1 - price) - ne) * row["size_usd"] / ne if ne > 0 else 0
-
+                current_token_price = _token_price(row["side"], yes_price)
+                pnl = (current_token_price - row["entry_price"]) * row["size_usd"] / row["entry_price"]
                 pnl_pct = pnl / row["size_usd"] * 100 if row["size_usd"] > 0 else 0
                 await conn.execute(
                     "UPDATE paper_positions SET current_price=$1,unrealized_pnl=$2,unrealized_pnl_pct=$3 WHERE id=$4",
-                    price, pnl, pnl_pct, row["id"]
+                    current_token_price, pnl, pnl_pct, row["id"]
                 )
 
-                if price >= 0.95 or price <= 0.05:
-                    await self._close_position(conn, row, price)
+                if yes_price >= 0.95 or yes_price <= 0.05:
+                    await self._close_position(conn, row, yes_price)
 
-    async def _close_position(self, conn, row, final_price: float):
-        if row["side"] == "YES":
-            realized = (final_price - row["entry_price"]) * row["size_usd"] / row["entry_price"]
-        else:
-            ne = 1 - row["entry_price"]
-            realized = ((1 - final_price) - ne) * row["size_usd"] / ne if ne > 0 else 0
+    async def _close_position(self, conn, row, final_yes_price: float):
+        final_token_price = _token_price(row["side"], final_yes_price)
+        realized = (final_token_price - row["entry_price"]) * row["size_usd"] / row["entry_price"]
 
         await conn.execute(
             "UPDATE paper_positions SET status='closed',closed_at=NOW(),unrealized_pnl=0,unrealized_pnl_pct=0,current_price=$1 WHERE id=$2",
-            final_price, row["id"]
+            final_token_price, row["id"]
         )
         await conn.execute("""
             INSERT INTO paper_trades (market_id, market_question, side, action, size_usd, price, slippage, fee_usd, realized_pnl, signal_type)
             SELECT market_id, market_question, side, 'sell', size_usd, $1, 0, size_usd*0.002, $2, signal_type
             FROM paper_positions WHERE id=$3
-        """, final_price, realized, row["id"])
+        """, final_token_price, realized, row["id"])
         logger.info(f"[PAPER] Position closed realized={realized:+.2f}")
 
     async def snapshot_pnl(self):
@@ -138,6 +136,8 @@ class PaperExecutor:
                 "SELECT COALESCE(SUM(unrealized_pnl),0) FROM paper_positions WHERE status='open'") or 0)
             open_count = int(await conn.fetchval(
                 "SELECT COUNT(*) FROM paper_positions WHERE status='open'") or 0)
+            today_realized = float(await conn.fetchval(
+                "SELECT COALESCE(SUM(realized_pnl),0) FROM paper_trades WHERE executed_at >= CURRENT_DATE") or 0)
 
             wins = int(r["wins"] or 0)
             losses = int(r["losses"] or 0)
@@ -187,5 +187,6 @@ class PaperExecutor:
                 "worst_trade": float(r["worst"] or 0),
                 "sharpe_ratio": sharpe,
                 "unrealized_pnl": unrealized,
+                "today_realized_pnl": today_realized,
                 "by_signal_type": by_type,
             }
