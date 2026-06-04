@@ -3,13 +3,14 @@ import { db } from "@workspace/db";
 import { positionsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { GetPositionParams } from "@workspace/api-zod";
+import { isoOrNow, isoOrNull } from "../lib/serialize";
 
 const router = Router();
 
 const serialize = (p: typeof positionsTable.$inferSelect) => ({
   ...p,
-  opened_at: p.opened_at?.toISOString() ?? new Date().toISOString(),
-  closed_at: p.closed_at?.toISOString() ?? null,
+  opened_at: isoOrNow(p.opened_at),
+  closed_at: isoOrNull(p.closed_at),
 });
 
 router.get("/positions", async (req, res) => {

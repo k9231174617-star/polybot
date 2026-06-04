@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { marketsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { GetMarketsQueryParams, GetMarketParams } from "@workspace/api-zod";
+import { isoOrNow, isoOrNull } from "../lib/serialize";
 
 const router = Router();
 
@@ -18,8 +19,8 @@ router.get("/markets", async (req, res) => {
     const rows = await query.orderBy(desc(marketsTable.last_updated)).limit(limit);
     res.json(rows.map((m) => ({
       ...m,
-      end_date: m.end_date?.toISOString() ?? null,
-      last_updated: m.last_updated?.toISOString() ?? new Date().toISOString(),
+      end_date: isoOrNull(m.end_date),
+      last_updated: isoOrNow(m.last_updated),
     })));
   } catch (err) {
     req.log.error({ err }, "Failed to get markets");
@@ -39,8 +40,8 @@ router.get("/markets/:marketId", async (req, res): Promise<void> => {
     if (!market) { res.status(404).json({ error: "Market not found" }); return; }
     res.json({
       ...market,
-      end_date: market.end_date?.toISOString() ?? null,
-      last_updated: market.last_updated?.toISOString() ?? new Date().toISOString(),
+      end_date: isoOrNull(market.end_date),
+      last_updated: isoOrNow(market.last_updated),
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get market");

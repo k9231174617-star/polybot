@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { tradesTable, positionsTable, pnlSnapshotsTable } from "@workspace/db";
 import { eq, desc, gte, asc } from "drizzle-orm";
 import { GetPnlChartQueryParams } from "@workspace/api-zod";
+import { isoOrNow } from "../lib/serialize";
 
 const router = Router();
 
@@ -74,7 +75,7 @@ router.get("/pnl/chart", async (req, res) => {
       .orderBy(asc(pnlSnapshotsTable.created_at));
 
     res.json(snapshots.map((s) => ({
-      timestamp: s.created_at?.toISOString() ?? new Date().toISOString(),
+      timestamp: isoOrNow(s.created_at),
       cumulative_pnl: s.cumulative_pnl,
       portfolio_value: s.portfolio_value,
     })));

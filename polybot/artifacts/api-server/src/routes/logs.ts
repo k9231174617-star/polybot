@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { logEntriesTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { GetLogsQueryParams } from "@workspace/api-zod";
+import { isoOrNow } from "../lib/serialize";
 
 const router = Router();
 
@@ -18,7 +19,7 @@ router.get("/logs", async (req, res) => {
     const rows = await query.orderBy(desc(logEntriesTable.created_at)).limit(limit);
     res.json(rows.map((l) => ({
       ...l,
-      created_at: l.created_at?.toISOString() ?? new Date().toISOString(),
+      created_at: isoOrNow(l.created_at),
     })));
   } catch (err) {
     req.log.error({ err }, "Failed to get logs");

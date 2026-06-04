@@ -7,6 +7,7 @@ import {
   botConfigTable,
 } from "@workspace/db";
 import { desc, eq, gte, sql } from "drizzle-orm";
+import { isoOrNow, isoOrNull } from "../lib/serialize";
 
 const router = Router();
 
@@ -30,8 +31,8 @@ router.get("/paper/positions", async (req, res): Promise<void> => {
     res.json(
       rows.map((p) => ({
         ...p,
-        opened_at: p.opened_at?.toISOString() ?? new Date().toISOString(),
-        closed_at: p.closed_at?.toISOString() ?? null,
+        opened_at: isoOrNow(p.opened_at),
+        closed_at: isoOrNull(p.closed_at),
       }))
     );
   } catch (err) {
@@ -52,7 +53,7 @@ router.get("/paper/trades", async (req, res): Promise<void> => {
     res.json(
       rows.map((t) => ({
         ...t,
-        executed_at: t.executed_at?.toISOString() ?? new Date().toISOString(),
+        executed_at: isoOrNow(t.executed_at),
       }))
     );
   } catch (err) {
@@ -82,7 +83,7 @@ router.get("/paper/chart", async (req, res): Promise<void> => {
 
     res.json(
       rows.map((r) => ({
-        timestamp: r.created_at?.toISOString() ?? new Date().toISOString(),
+        timestamp: isoOrNow(r.created_at),
         cumulative_pnl: r.cumulative_pnl,
         portfolio_value: r.portfolio_value,
         win_rate: r.win_rate,

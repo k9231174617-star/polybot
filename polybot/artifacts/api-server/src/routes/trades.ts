@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { tradesTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
 import { GetTradesQueryParams } from "@workspace/api-zod";
+import { isoOrNow } from "../lib/serialize";
 
 const router = Router();
 
@@ -19,7 +20,7 @@ router.get("/trades", async (req, res) => {
       .offset(offset);
     res.json(rows.map((t) => ({
       ...t,
-      executed_at: t.executed_at?.toISOString() ?? new Date().toISOString(),
+      executed_at: isoOrNow(t.executed_at),
     })));
   } catch (err) {
     req.log.error({ err }, "Failed to get trades");

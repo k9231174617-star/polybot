@@ -22,6 +22,8 @@ export const GetBotStatusResponse = z.object({
   uptime_seconds: z.number().int().nullable(),
   markets_scanned: z.number().int(),
   last_scan_at: z.string().nullable(),
+  last_heartbeat_at: z.string().nullable(),
+  healthy: z.boolean(),
   error_message: z.string().nullable(),
   pid: z.number().int().nullable(),
 });

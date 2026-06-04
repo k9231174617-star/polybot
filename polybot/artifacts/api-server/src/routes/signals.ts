@@ -3,13 +3,14 @@ import { db } from "@workspace/db";
 import { signalsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { GetSignalsQueryParams } from "@workspace/api-zod";
+import { isoOrNow, isoOrNull } from "../lib/serialize";
 
 const router = Router();
 
 const serialize = (s: typeof signalsTable.$inferSelect) => ({
   ...s,
-  detected_at: s.detected_at?.toISOString() ?? new Date().toISOString(),
-  acted_at: s.acted_at?.toISOString() ?? null,
+  detected_at: isoOrNow(s.detected_at),
+  acted_at: isoOrNull(s.acted_at),
 });
 
 router.get("/signals", async (req, res) => {
