@@ -9,6 +9,7 @@ from bot.data.news import batch_sentiment
 from bot.analytics.engine import AnalyticsEngine
 from bot.analytics.calibration import load_calibration
 from bot.analytics.arbitrage import find_all_arb_signals
+from bot.analytics.roda import detect_roda_signals
 from bot.execution.orders import OrderExecutor
 from bot.execution.paper import PaperExecutor
 from bot.risk.manager import RiskManager
@@ -105,6 +106,18 @@ class PolymarketBot:
         markets_scanned = 0
         all_markets: list[dict] = []
 
+        roda_config = {
+            **config,
+            "roda_enabled": settings.roda_enabled,
+            "roda_min_confidence": settings.roda_min_confidence,
+            "roda_min_age_hours": settings.roda_min_age_hours,
+            "roda_max_age_hours": settings.roda_max_age_hours,
+            "roda_max_entry_price": settings.roda_max_entry_price,
+            "roda_min_sources": settings.roda_min_sources,
+            "roda_hold_window_hours": settings.roda_hold_window_hours,
+            "roda_max_position_pct": settings.roda_max_position_pct,
+        }
+
         async with PolymarketClient() as client:
             raw_list = await client.get_active_markets(limit=min(settings.max_markets_to_scan, 100))
             parsed = [client.parse_market(r) for r in raw_list]
@@ -114,12 +127,47 @@ class PolymarketBot:
             sentiment_map = await batch_sentiment(valid, api_key=settings.news_api_key)
 
             market_prices: dict[str, float] = {}
+            roda_signals = await detect_roda_signals(
+                valid,
+                news_api_key=settings.news_api_key,
+                config=roda_config,
+                kelly_fraction=dyn_kelly,
+                total_capital=capital,
+            )
+            roda_market_ids: set[str] = set()
+            for signal in roda_signals:
+                try:
+                    can_trade, reason = await risk_mgr.can_trade(signal)
+                    if not can_trade:
+                        logger.info(f"RODA skipped {signal['market_id']}: {reason}")
+                        continue
+                    sig_id = await insert_signal(signal)
+                    logger.info(
+                        f"RODA signal #{sig_id} {signal['direction']} edge={signal['edge']:.3f} "
+                        f"kelly=${signal['kelly_size_usd']:.2f} conf={signal['confidence']:.2f} "
+                        f"age={signal.get('roda_age_hours', 0):.1f}h sources={signal.get('roda_source_count', 0)}"
+                    )
+                    trade = None
+                    if paper_on and self._paper:
+                        trade = await self._paper.execute_signal(signal)
+                    else:
+                        trade = await self.executor.execute_signal(signal, config)
+                    if trade:
+                        signals_found += 1
+                        roda_market_ids.add(signal['market_id'])
+                        await self._mark_acted(sig_id)
+                except Exception as e:
+                    logger.warning(f"RODA signal error: {e}")
 
             for market in valid:
                 try:
                     market_prices[market["id"]] = market["market_price"]
                     markets_scanned += 1
                     all_markets.append(market)
+                    await upsert_market(market)
+                    if market["id"] in roda_market_ids:
+                        continue
+
                     sentiment = sentiment_map.get(market["id"], 0.0)
                     market["sentiment_score"] = sentiment
 
@@ -129,7 +177,6 @@ class PolymarketBot:
                         sentiment_score=sentiment,
                         kelly_fraction_override=dyn_kelly,
                     )
-                    await upsert_market(market)
 
                     if signal:
                         can_trade, reason = await risk_mgr.can_trade(signal)

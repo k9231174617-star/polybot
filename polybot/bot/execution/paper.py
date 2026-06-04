@@ -2,7 +2,7 @@
 Paper Trading Executor.
 
 Real market prices, virtual money. Full portfolio tracking in separate DB tables.
-Auto-closes positions when market resolves (price hits ≥0.95 or ≤0.05).
+Auto-closes positions when market resolves.
 """
 import random
 import statistics
@@ -14,6 +14,12 @@ from bot.utils.db import get_pool, log_entry
 
 def _token_price(side: str, yes_price: float) -> float:
     return yes_price if side == "YES" else 1 - yes_price
+
+
+def _resolve_thresholds(signal_type: str) -> tuple[float, float]:
+    if signal_type.startswith("roda_"):
+        return 0.99, 0.01
+    return 0.95, 0.05
 
 
 class PaperExecutor:
@@ -67,7 +73,7 @@ class PaperExecutor:
         pool = await get_pool()
         async with pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT id, market_id, side, size_usd, entry_price FROM paper_positions WHERE status='open'"
+                "SELECT id, market_id, side, size_usd, entry_price, signal_type FROM paper_positions WHERE status='open'"
             )
             for row in rows:
                 yes_price = market_prices.get(row["market_id"])
@@ -82,7 +88,8 @@ class PaperExecutor:
                     current_token_price, pnl, pnl_pct, row["id"]
                 )
 
-                if yes_price >= 0.95 or yes_price <= 0.05:
+                close_high, close_low = _resolve_thresholds(str(row["signal_type"] or ""))
+                if yes_price >= close_high or yes_price <= close_low:
                     await self._close_position(conn, row, yes_price)
 
     async def _close_position(self, conn, row, final_yes_price: float):
