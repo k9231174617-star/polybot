@@ -25,15 +25,21 @@ async def send_telegram_alert(level: str, title: str, message: str, details: dic
         text += "\n\n" + "\n".join(f"`{k}`: `{v}`" for k, v in payload.items())
 
     url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
+    recipients = [settings.telegram_chat_id]
+    if level.lower() in {"error", "critical"} and settings.telegram_critical_chat_id:
+        if settings.telegram_critical_chat_id not in recipients:
+            recipients.append(settings.telegram_critical_chat_id)
+
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.post(
-            url,
-            json={
-                "chat_id": settings.telegram_chat_id,
-                "text": text,
-                "parse_mode": "Markdown",
-                "disable_web_page_preview": True,
-            },
-        )
-        if response.status_code >= 400:
-            logger.error("Failed to send Telegram alert: {}", response.text)
+        for chat_id in recipients:
+            response = await client.post(
+                url,
+                json={
+                    "chat_id": chat_id,
+                    "text": text,
+                    "parse_mode": "Markdown",
+                    "disable_web_page_preview": True,
+                },
+            )
+            if response.status_code >= 400:
+                logger.error("Failed to send Telegram alert: {}", response.text)

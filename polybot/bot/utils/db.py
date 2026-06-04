@@ -11,6 +11,49 @@ from bot.config import settings
 
 _pool: Optional[asyncpg.Pool] = None
 
+BOT_CONFIG_DEFAULTS: dict[str, Any] = {
+    "edge_threshold": 0.05,
+    "max_position_pct": 0.05,
+    "daily_loss_limit_pct": 0.03,
+    "kelly_fraction": 0.25,
+    "scan_interval_seconds": 30,
+    "use_limit_orders": True,
+    "min_liquidity_usd": 1000,
+    "max_correlated_exposure_pct": 0.15,
+    "paper_trading": True,
+    "paper_capital_usd": 1000,
+    "retention_scan_interval": 48,
+    "reconciliation_enabled": True,
+    "reconciliation_warning_pct": 0.01,
+    "reconciliation_critical_pct": 0.03,
+    "reconciliation_warning_usd": 5.0,
+    "reconciliation_critical_usd": 25.0,
+    "auto_recalibration_enabled": False,
+    "auto_recalibration_interval_seconds": 3600,
+    "auto_recalibration_window_days": 14,
+    "auto_recalibration_min_trades": 20,
+    "auto_recalibration_apply_changes": False,
+    "auto_recalibration_max_adjustment_pct": 0.15,
+    "roda_enabled": True,
+    "roda_mode": "auto",
+    "lch_enabled": True,
+    "hybrid_enabled": True,
+    "mss2_enabled": True,
+    "roda_min_confidence": 0.95,
+    "roda_min_sources": 3,
+    "roda_divergence_min_edge": 0.06,
+    "roda_divergence_min_confidence": 0.60,
+    "roda_divergence_min_sources": 2,
+    "lch_min_z_score": 2.5,
+    "lch_min_recovery_probability": 0.70,
+    "lch_max_wash_trading_score": 0.72,
+    "mss2_min_spread_bps": 35.0,
+    "mss2_min_expected_profit_bps": 35.0,
+    "mss2_max_adverse_selection_score": 0.65,
+    "mss2_min_fill_probability_proxy": 0.30,
+    "mss2_max_queue_pressure": 0.75,
+}
+
 SCHEMA_STATEMENTS: tuple[str, ...] = (
     """
     CREATE TABLE IF NOT EXISTS bot_state (
@@ -42,6 +85,12 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         reconciliation_critical_pct REAL NOT NULL DEFAULT 0.03,
         reconciliation_warning_usd REAL NOT NULL DEFAULT 5.0,
         reconciliation_critical_usd REAL NOT NULL DEFAULT 25.0,
+        auto_recalibration_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        auto_recalibration_interval_seconds INTEGER NOT NULL DEFAULT 3600,
+        auto_recalibration_window_days INTEGER NOT NULL DEFAULT 14,
+        auto_recalibration_min_trades INTEGER NOT NULL DEFAULT 20,
+        auto_recalibration_apply_changes BOOLEAN NOT NULL DEFAULT FALSE,
+        auto_recalibration_max_adjustment_pct REAL NOT NULL DEFAULT 0.15,
         roda_enabled BOOLEAN NOT NULL DEFAULT TRUE,
         roda_mode TEXT NOT NULL DEFAULT 'auto',
         lch_enabled BOOLEAN NOT NULL DEFAULT TRUE,
@@ -134,6 +183,24 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     """,
     """
     ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS reconciliation_critical_usd REAL NOT NULL DEFAULT 25.0
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS auto_recalibration_enabled BOOLEAN NOT NULL DEFAULT FALSE
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS auto_recalibration_interval_seconds INTEGER NOT NULL DEFAULT 3600
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS auto_recalibration_window_days INTEGER NOT NULL DEFAULT 14
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS auto_recalibration_min_trades INTEGER NOT NULL DEFAULT 20
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS auto_recalibration_apply_changes BOOLEAN NOT NULL DEFAULT FALSE
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS auto_recalibration_max_adjustment_pct REAL NOT NULL DEFAULT 0.15
     """,
     """
     CREATE TABLE IF NOT EXISTS markets (
@@ -446,6 +513,12 @@ DEFAULT_BOT_CONFIG_SQL = """
         reconciliation_critical_pct,
         reconciliation_warning_usd,
         reconciliation_critical_usd,
+        auto_recalibration_enabled,
+        auto_recalibration_interval_seconds,
+        auto_recalibration_window_days,
+        auto_recalibration_min_trades,
+        auto_recalibration_apply_changes,
+        auto_recalibration_max_adjustment_pct,
         roda_enabled,
         roda_mode,
         lch_enabled,
@@ -466,7 +539,7 @@ DEFAULT_BOT_CONFIG_SQL = """
         mss2_max_queue_pressure
     )
     SELECT
-        0.05, 0.05, 0.03, 0.25, 30, TRUE, 1000, 0.15, TRUE, 1000, 48, TRUE, 0.01, 0.03, 5.0, 25.0, TRUE, 'auto', TRUE, TRUE, TRUE,
+        0.05, 0.05, 0.03, 0.25, 30, TRUE, 1000, 0.15, TRUE, 1000, 48, TRUE, 0.01, 0.03, 5.0, 25.0, FALSE, 3600, 14, 20, FALSE, 0.15, TRUE, 'auto', TRUE, TRUE, TRUE,
         0.95, 3, 0.06, 0.60, 2, 2.5, 0.70, 0.72, 35.0, 35.0, 0.65, 0.30, 0.75
     WHERE NOT EXISTS (SELECT 1 FROM bot_config)
 """
@@ -797,43 +870,10 @@ async def get_bot_config() -> dict:
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM bot_config LIMIT 1")
         if not row:
-            return {
-                "edge_threshold": 0.05,
-                "max_position_pct": 0.05,
-                "daily_loss_limit_pct": 0.03,
-                "kelly_fraction": 0.25,
-                "scan_interval_seconds": 30,
-                "use_limit_orders": True,
-                "min_liquidity_usd": 1000,
-                "max_correlated_exposure_pct": 0.15,
-                "paper_trading": True,
-                "paper_capital_usd": 1000,
-                "retention_scan_interval": 48,
-                "reconciliation_enabled": True,
-                "reconciliation_warning_pct": 0.01,
-                "reconciliation_critical_pct": 0.03,
-                "reconciliation_warning_usd": 5.0,
-                "reconciliation_critical_usd": 25.0,
-                "roda_enabled": True,
-                "roda_mode": "auto",
-                "lch_enabled": True,
-                "hybrid_enabled": True,
-                "mss2_enabled": True,
-                "roda_min_confidence": 0.95,
-                "roda_min_sources": 3,
-                "roda_divergence_min_edge": 0.06,
-                "roda_divergence_min_confidence": 0.60,
-                "roda_divergence_min_sources": 2,
-                "lch_min_z_score": 2.5,
-                "lch_min_recovery_probability": 0.70,
-                "lch_max_wash_trading_score": 0.72,
-                "mss2_min_spread_bps": 35.0,
-                "mss2_min_expected_profit_bps": 35.0,
-                "mss2_max_adverse_selection_score": 0.65,
-                "mss2_min_fill_probability_proxy": 0.30,
-                "mss2_max_queue_pressure": 0.75,
-            }
-        return dict(row)
+            return dict(BOT_CONFIG_DEFAULTS)
+        config = dict(BOT_CONFIG_DEFAULTS)
+        config.update({key: value for key, value in dict(row).items() if value is not None})
+        return config
 
 
 async def update_bot_config(patch: dict[str, Any]) -> dict:
@@ -857,6 +897,12 @@ async def update_bot_config(patch: dict[str, Any]) -> dict:
         "reconciliation_critical_pct",
         "reconciliation_warning_usd",
         "reconciliation_critical_usd",
+        "auto_recalibration_enabled",
+        "auto_recalibration_interval_seconds",
+        "auto_recalibration_window_days",
+        "auto_recalibration_min_trades",
+        "auto_recalibration_apply_changes",
+        "auto_recalibration_max_adjustment_pct",
         "roda_enabled",
         "lch_enabled",
         "hybrid_enabled",
@@ -875,14 +921,6 @@ async def update_bot_config(patch: dict[str, Any]) -> dict:
         "mss2_min_fill_probability_proxy",
         "mss2_max_queue_pressure",
         "roda_mode",
-        "roda_min_confidence",
-        "roda_min_sources",
-        "roda_divergence_min_edge",
-        "roda_divergence_min_confidence",
-        "roda_divergence_min_sources",
-        "lch_min_z_score",
-        "lch_min_recovery_probability",
-        "lch_max_wash_trading_score",
     }
     patch = {key: value for key, value in patch.items() if key in allowed}
     if not patch:

@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     # Alerts / watchdog
     telegram_bot_token: str = Field(default="", env="TELEGRAM_BOT_TOKEN")
     telegram_chat_id: str = Field(default="", env="TELEGRAM_CHAT_ID")
+    telegram_critical_chat_id: str = Field(default="", env="TELEGRAM_CRITICAL_CHAT_ID")
     alerts_enabled: bool = Field(default=True, env="ALERTS_ENABLED")
     watchdog_timeout_seconds: int = Field(default=120, env="WATCHDOG_TIMEOUT_SECONDS")
     bot_mode: str = Field(default="bot", env="BOT_MODE")

@@ -12,6 +12,56 @@ import {
 
 const router = Router();
 
+const BOT_CONFIG_DEFAULTS = {
+  edge_threshold: 0.05,
+  max_position_pct: 0.05,
+  daily_loss_limit_pct: 0.03,
+  kelly_fraction: 0.25,
+  scan_interval_seconds: 30,
+  use_limit_orders: true,
+  min_liquidity_usd: 1000,
+  max_correlated_exposure_pct: 0.15,
+  paper_trading: true,
+  paper_capital_usd: 1000,
+  retention_scan_interval: 48,
+  reconciliation_enabled: true,
+  reconciliation_warning_pct: 0.01,
+  reconciliation_critical_pct: 0.03,
+  reconciliation_warning_usd: 5,
+  reconciliation_critical_usd: 25,
+  auto_recalibration_enabled: false,
+  auto_recalibration_interval_seconds: 3600,
+  auto_recalibration_window_days: 14,
+  auto_recalibration_min_trades: 20,
+  auto_recalibration_apply_changes: false,
+  auto_recalibration_max_adjustment_pct: 0.15,
+  roda_enabled: true,
+  roda_mode: "auto",
+  lch_enabled: true,
+  hybrid_enabled: true,
+  mss2_enabled: true,
+  roda_min_confidence: 0.95,
+  roda_min_sources: 3,
+  roda_divergence_min_edge: 0.06,
+  roda_divergence_min_confidence: 0.6,
+  roda_divergence_min_sources: 2,
+  lch_min_z_score: 2.5,
+  lch_min_recovery_probability: 0.7,
+  lch_max_wash_trading_score: 0.72,
+  mss2_min_spread_bps: 35,
+  mss2_min_expected_profit_bps: 35,
+  mss2_max_adverse_selection_score: 0.65,
+  mss2_min_fill_probability_proxy: 0.3,
+  mss2_max_queue_pressure: 0.75,
+};
+
+function normalizeBotConfig(row: Record<string, unknown> | undefined) {
+  return {
+    ...BOT_CONFIG_DEFAULTS,
+    ...(row ?? {}),
+  };
+}
+
 router.get("/bot/status", async (req, res): Promise<void> => {
   try {
     const [state] = await db.select().from(botStateTable).orderBy(botStateTable.id).limit(1);
@@ -111,8 +161,9 @@ router.get("/bot/config", async (req, res) => {
     if (!config) {
       [config] = await db.insert(botConfigTable).values({}).returning();
     }
+    const normalized = normalizeBotConfig(config as Record<string, unknown> | undefined);
     const data = GetBotConfigResponse.parse({
-      ...config,
+      ...normalized,
       updated_at: isoOrNow(config.updated_at),
     });
     res.json(data);
@@ -138,8 +189,9 @@ router.put("/bot/config", async (req, res): Promise<void> => {
     } else {
       [config] = await db.insert(botConfigTable).values(parsed.data).returning();
     }
+    const normalized = normalizeBotConfig(config as Record<string, unknown> | undefined);
     const data = GetBotConfigResponse.parse({
-      ...config,
+      ...normalized,
       updated_at: isoOrNow(config.updated_at),
     });
     res.json(data);

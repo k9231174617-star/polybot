@@ -88,12 +88,23 @@ export default function Dashboard() {
   const reconciliationUpdatedAt = summary?.balance_reconciliation_updated_at ?? null;
   const reconciliationIsOk = reconciliationStatus === "ok" || reconciliationStatus === "synced";
   const latencyDecision = summary?.latency_signal_to_decision_ms ?? null;
+  const latencyExecution = summary?.latency_decision_to_execution_ms ?? null;
   const latencyTradeRecorded = summary?.latency_signal_to_trade_recorded_ms ?? null;
   const latencyConfirmation = summary?.latency_signal_to_confirmation_ms ?? null;
   const latencyEvents = summary?.latency_events_count ?? 0;
+  const errorRate = summary?.error_rate_24h ?? 0;
+  const heartbeatAgeSeconds = summary?.heartbeat_age_seconds ?? null;
+  const heartbeatStale = Boolean(summary?.heartbeat_stale);
+  const droppedSignalsCount = summary?.dropped_signals_count ?? 0;
+  const fillSuccessRate = summary?.fill_success_rate ?? 0;
   const hasLatencyDecision = Boolean(latencyDecision && latencyDecision.count > 0);
   const hasLatencyTradeRecorded = Boolean(latencyTradeRecorded && latencyTradeRecorded.count > 0);
   const hasLatencyConfirmation = Boolean(latencyConfirmation && latencyConfirmation.count > 0);
+  const heartbeatAgeLabel = heartbeatAgeSeconds !== null
+    ? heartbeatAgeSeconds < 60
+      ? `${heartbeatAgeSeconds}s`
+      : `${Math.floor(heartbeatAgeSeconds / 60)}m`
+    : "—";
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -141,6 +152,43 @@ export default function Dashboard() {
             label={t("latency_events")}
             value={String(latencyEvents)}
             subValue={latencyDecision || latencyExecution || latencyConfirmation ? t("latency_title") : undefined}
+          />
+        </>}
+      </div>
+
+      <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
+        {sumLoading ? Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-20 rounded-md" />
+        )) : <>
+          <StatCard
+            label={t("slo_error_rate")}
+            value={`${(errorRate * 100).toFixed(1)}%`}
+            subValue={`${summary?.error_events_24h ?? 0} / ${summary?.log_events_24h ?? 0}`}
+            positive={errorRate < 0.05}
+          />
+          <StatCard
+            label={t("slo_heartbeat")}
+            value={heartbeatAgeLabel}
+            subValue={heartbeatStale ? t("slo_heartbeat_stale") : t("slo_heartbeat_fresh")}
+            positive={!heartbeatStale}
+          />
+          <StatCard
+            label={t("slo_dropped_signals")}
+            value={String(droppedSignalsCount)}
+            subValue={t("slo_title")}
+            positive={droppedSignalsCount === 0}
+          />
+          <StatCard
+            label={t("slo_fill_success")}
+            value={`${(fillSuccessRate * 100).toFixed(1)}%`}
+            subValue="orders"
+            positive={fillSuccessRate >= 0.9}
+          />
+          <StatCard
+            label={t("slo_reconciliation_drift")}
+            value={`${((reconciliationDeltaPct ?? 0) * 100).toFixed(2)}%`}
+            subValue={reconciliationDeltaUsd !== null ? `$${Math.abs(reconciliationDeltaUsd).toFixed(2)}` : "—"}
+            positive={Math.abs(reconciliationDeltaPct ?? 0) < 0.01}
           />
         </>}
       </div>

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { positionsTable, signalsTable, tradesTable, botStateTable, balanceReconciliationSnapshotsTable, latencyEventsTable } from "@workspace/db";
-import { eq, gte, count, desc } from "drizzle-orm";
+import { positionsTable, signalsTable, tradesTable, paperTradesTable, logEntriesTable, botStateTable, botConfigTable, balanceReconciliationSnapshotsTable, latencyEventsTable } from "@workspace/db";
+import { eq, gte, lt, and, count, desc } from "drizzle-orm";
 
 const router = Router();
 
@@ -35,18 +35,23 @@ router.get("/dashboard/summary", async (req, res) => {
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    const [botStateRows, openPositions, pendingSignalsRows, todayTrades, allTrades, latestReconciliationRows, latencyRows] = await Promise.all([
+    const [botStateRows, botConfigRows, openPositions, pendingSignalsRows, todayTrades, allTrades, paperTrades, logRows, latestReconciliationRows, latencyRows] = await Promise.all([
       db.select().from(botStateTable).limit(1),
+      db.select().from(botConfigTable).limit(1),
       db.select().from(positionsTable).where(eq(positionsTable.status, "open")),
       db.select({ value: count() }).from(signalsTable).where(eq(signalsTable.status, "pending")),
       db.select().from(tradesTable).where(gte(tradesTable.executed_at, today)),
       db.select().from(tradesTable),
+      db.select().from(paperTradesTable),
+      db.select().from(logEntriesTable).where(gte(logEntriesTable.created_at, dayAgo)),
       db.select().from(balanceReconciliationSnapshotsTable).orderBy(desc(balanceReconciliationSnapshotsTable.created_at)).limit(1),
       db.select().from(latencyEventsTable).orderBy(desc(latencyEventsTable.created_at)).limit(500),
     ]);
 
     const [botState] = botStateRows;
+    const [botConfig] = botConfigRows;
     const [{ value: pendingSignals }] = pendingSignalsRows;
     const [latestReconciliation] = latestReconciliationRows;
 
@@ -62,6 +67,23 @@ router.get("/dashboard/summary", async (req, res) => {
     const winRate = allTrades.length > 0 ? winCount / allTrades.length : 0;
 
     const deployedCapital = openPositions.reduce((sum, p) => sum + p.size_usd, 0);
+    const logCount = logRows.length;
+    const errorLogCount = logRows.filter((row) => String(row.level ?? "").toLowerCase() === "error").length;
+    const errorRate = logCount > 0 ? errorLogCount / logCount : 0;
+    const heartbeatUpdatedAt = botState?.updated_at ? new Date(botState.updated_at) : null;
+    const heartbeatAgeSeconds = heartbeatUpdatedAt ? Math.max(0, Math.floor((Date.now() - heartbeatUpdatedAt.getTime()) / 1000)) : null;
+    const scanIntervalSeconds = botConfig?.scan_interval_seconds ?? 30;
+    const staleSignalsCutoff = new Date(Date.now() - Math.max(scanIntervalSeconds * 2000, 120000));
+    const droppedSignalsRows = await db.select({ value: count() })
+      .from(signalsTable)
+      .where(and(eq(signalsTable.status, "pending"), lt(signalsTable.detected_at, staleSignalsCutoff)));
+    const droppedSignalsCount = Number(droppedSignalsRows[0]?.value ?? 0);
+    const fills = [...allTrades, ...paperTrades];
+    const filledOrders = fills.filter((row) => {
+      const status = String(row.order_status ?? "").toLowerCase();
+      return status === "filled" || status === "matched" || status === "simulated" || status === "partial" || status === "partially_filled";
+    }).length;
+    const fillSuccessRate = fills.length > 0 ? filledOrders / fills.length : 0;
     const latencyByStage = new Map<string, number[]>();
     for (const row of latencyRows) {
       const stage = String(row.stage ?? "unknown");
@@ -89,6 +111,13 @@ router.get("/dashboard/summary", async (req, res) => {
       trades_today: todayTrades.length,
       win_rate: winRate,
       deployed_capital_pct: TOTAL_CAPITAL > 0 ? deployedCapital / TOTAL_CAPITAL : 0,
+      error_rate_24h: errorRate,
+      log_events_24h: logCount,
+      error_events_24h: errorLogCount,
+      heartbeat_age_seconds: heartbeatAgeSeconds,
+      heartbeat_stale: heartbeatAgeSeconds !== null ? heartbeatAgeSeconds > Math.max(scanIntervalSeconds * 3, 120) : true,
+      dropped_signals_count: droppedSignalsCount,
+      fill_success_rate: fillSuccessRate,
       balance_reconciliation_status: latestReconciliation?.status ?? "unknown",
       balance_reconciliation_discrepancy_usd: latestReconciliation?.discrepancy_usd ?? null,
       balance_reconciliation_discrepancy_pct: latestReconciliation?.discrepancy_pct ?? null,
