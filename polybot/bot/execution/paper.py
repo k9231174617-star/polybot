@@ -21,6 +21,8 @@ def _resolve_thresholds(signal_type: str) -> tuple[float, float]:
         return 0.99, 0.01
     if signal_type.startswith("lch_"):
         return 0.97, 0.03
+    if signal_type.startswith("hybrid_"):
+        return 0.985, 0.015
     return 0.95, 0.05
 
 

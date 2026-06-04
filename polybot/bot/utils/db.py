@@ -36,6 +36,7 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         paper_capital_usd REAL NOT NULL DEFAULT 1000,
         roda_enabled BOOLEAN NOT NULL DEFAULT TRUE,
         lch_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        hybrid_enabled BOOLEAN NOT NULL DEFAULT TRUE,
         updated_at TIMESTAMP DEFAULT NOW()
     )
     """,
@@ -44,6 +45,9 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     """,
     """
     ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS lch_enabled BOOLEAN NOT NULL DEFAULT TRUE
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS hybrid_enabled BOOLEAN NOT NULL DEFAULT TRUE
     """,
     """
     CREATE TABLE IF NOT EXISTS markets (
@@ -191,10 +195,11 @@ DEFAULT_BOT_CONFIG_SQL = """
         paper_trading,
         paper_capital_usd,
         roda_enabled,
-        lch_enabled
+        lch_enabled,
+        hybrid_enabled
     )
     SELECT
-        0.05, 0.05, 0.03, 0.25, 30, TRUE, 1000, 0.15, TRUE, 1000, TRUE, TRUE
+        0.05, 0.05, 0.03, 0.25, 30, TRUE, 1000, 0.15, TRUE, 1000, TRUE, TRUE, TRUE
     WHERE NOT EXISTS (SELECT 1 FROM bot_config)
 """
 
@@ -375,6 +380,9 @@ async def get_bot_config() -> dict:
                 "max_correlated_exposure_pct": 0.15,
                 "paper_trading": True,
                 "paper_capital_usd": 1000,
+                "roda_enabled": True,
+                "lch_enabled": True,
+                "hybrid_enabled": True,
             }
         return dict(row)
 

@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     lch_max_position_size_usd: float = Field(default=500.0, env="LCH_MAX_POSITION_SIZE_USD")
     lch_max_daily_trades: int = Field(default=2, env="LCH_MAX_DAILY_TRADES")
 
+    # Hybrid strategy
+    hybrid_enabled: bool = Field(default=True, env="HYBRID_ENABLED")
+
     # External data sources
     coingecko_api_key: str = Field(default="", env="COINGECKO_API_KEY")
     news_api_key: str = Field(default="", env="NEWS_API_KEY")

@@ -26,6 +26,18 @@ const SIGNAL_COLORS: Record<string, string> = {
   implied_prob: "hsl(200 70% 55%)",
   roda_oracle_lag: "hsl(30 90% 55%)",
   lch_cascade: "hsl(0 72% 60%)",
+  hybrid_roda_lch_cross: "hsl(260 75% 58%)",
+};
+
+const SIGNAL_LABELS: Record<string, string> = {
+  price_discrepancy: "Price Discrepancy",
+  momentum: "Momentum",
+  cross_market_arb: "Cross-Market Arb",
+  sentiment_lag: "Sentiment Lag",
+  implied_prob: "Implied Probability",
+  roda_oracle_lag: "RODA",
+  lch_cascade: "LCH Cascade",
+  hybrid_roda_lch_cross: "Hybrid",
 };
 
 function StatCard({ label, value, sub, positive }: {
@@ -149,11 +161,11 @@ export default function Paper() {
           <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("paper_by_type")}</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {Object.entries(byType).map(([type, data]) => (
-              <div key={type} className="border border-border rounded-md p-3 space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: SIGNAL_COLORS[type] ?? "hsl(var(--muted))" }} />
-                  <span className="text-xs font-mono font-medium text-foreground">{type.replace(/_/g, " ")}</span>
-                </div>
+                <div key={type} className="border border-border rounded-md p-3 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: SIGNAL_COLORS[type] ?? "hsl(var(--muted))" }} />
+                    <span className="text-xs font-mono font-medium text-foreground">{SIGNAL_LABELS[type] ?? type.replace(/_/g, " ")}</span>
+                  </div>
                 <div className="grid grid-cols-3 gap-1 text-[10px] text-muted-foreground">
                   <div>Trades: <span className="text-foreground font-mono">{data.total}</span></div>
                   <div>WR: <span className={cn("font-mono", (data.win_rate ?? 0) >= 0.5 ? "text-success" : "text-destructive")}>{((data.win_rate ?? 0) * 100).toFixed(0)}%</span></div>

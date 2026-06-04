@@ -35,6 +35,7 @@ export const botConfigTable = pgTable("bot_config", {
   paper_capital_usd: real("paper_capital_usd").notNull().default(1000),
   roda_enabled: boolean("roda_enabled").notNull().default(true),
   lch_enabled: boolean("lch_enabled").notNull().default(true),
+  hybrid_enabled: boolean("hybrid_enabled").notNull().default(true),
   updated_at: timestamp("updated_at").defaultNow(),
 });
 

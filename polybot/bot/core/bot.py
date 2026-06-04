@@ -9,6 +9,7 @@ from bot.data.news import batch_sentiment
 from bot.analytics.engine import AnalyticsEngine
 from bot.analytics.calibration import load_calibration
 from bot.analytics.arbitrage import find_all_arb_signals
+from bot.analytics.hybrid import detect_hybrid_signals
 from bot.analytics.roda import detect_roda_signals
 from bot.analytics.lch import LchDetector
 from bot.execution.orders import OrderExecutor
@@ -165,6 +166,10 @@ class PolymarketBot:
             "lch_max_position_size_usd": settings.lch_max_position_size_usd,
             "lch_max_daily_trades": settings.lch_max_daily_trades,
         }
+        hybrid_config = {
+            **config,
+            "hybrid_enabled": config.get("hybrid_enabled", settings.hybrid_enabled),
+        }
 
         async with PolymarketClient() as client:
             raw_list = await client.get_active_markets(limit=min(settings.max_markets_to_scan, 100))
@@ -181,6 +186,15 @@ class PolymarketBot:
                 kelly_fraction=dyn_kelly,
                 total_capital=capital,
             )
+            arb_signals_preview = find_all_arb_signals(valid, capital)
+            hybrid_signals = await detect_hybrid_signals(
+                valid,
+                roda_signals=roda_signals,
+                arb_signals=arb_signals_preview,
+                config=hybrid_config,
+                kelly_fraction=dyn_kelly,
+                total_capital=capital,
+            )
             for signal in roda_signals:
                 if await self._attempt_signal(signal, config, risk_mgr, paper_on, label="RODA"):
                     signals_found += 1
@@ -194,6 +208,11 @@ class PolymarketBot:
             )
             for signal in lch_signals:
                 if await self._attempt_signal(signal, config, risk_mgr, paper_on, label="LCH"):
+                    signals_found += 1
+                    strategic_market_ids.add(signal["market_id"])
+
+            for signal in hybrid_signals:
+                if await self._attempt_signal(signal, config, risk_mgr, paper_on, label="HYBRID"):
                     signals_found += 1
                     strategic_market_ids.add(signal["market_id"])
 
@@ -221,7 +240,7 @@ class PolymarketBot:
                 except Exception as e:
                     logger.warning(f"Market processing error: {e}")
 
-            for arb_sig in find_all_arb_signals(all_markets, capital):
+            for arb_sig in arb_signals_preview:
                 try:
                     arb_sig["kelly_size_usd"] = min(
                         self.analytics.calculate_kelly_size(

@@ -26,6 +26,7 @@ const SIGNAL_LABELS: Record<string, string> = {
   implied_prob: "Implied Probability",
   roda_oracle_lag: "RODA",
   lch_cascade: "LCH Cascade",
+  hybrid_roda_lch_cross: "Hybrid",
 };
 
 const SIGNAL_COLORS: Record<string, string> = {
@@ -36,7 +37,26 @@ const SIGNAL_COLORS: Record<string, string> = {
   implied_prob: "hsl(200 70% 55%)",
   roda_oracle_lag: "hsl(30 90% 55%)",
   lch_cascade: "hsl(0 72% 60%)",
+  hybrid_roda_lch_cross: "hsl(260 75% 58%)",
 };
+
+const STRATEGY_DEFS = [
+  {
+    key: "roda_oracle_lag",
+    nameKey: "strategy_roda",
+    descKey: "strategy_roda_desc",
+  },
+  {
+    key: "lch_cascade",
+    nameKey: "strategy_lch",
+    descKey: "strategy_lch_desc",
+  },
+  {
+    key: "hybrid_roda_lch_cross",
+    nameKey: "strategy_hybrid",
+    descKey: "strategy_hybrid_desc",
+  },
+] as const;
 
 function formatStrategy(type: string): string {
   return SIGNAL_LABELS[type] ?? type.replace(/_/g, " ");
@@ -99,6 +119,7 @@ export default function Strategies() {
     }
 
     const types = new Set([
+      ...STRATEGY_DEFS.map((item) => item.key),
       ...Object.keys(paperByType),
       ...Object.keys(signalAgg),
       ...Object.keys(openAgg),
@@ -155,9 +176,15 @@ export default function Strategies() {
       description: t("strategy_lch_desc"),
       enabled: botConfig?.lch_enabled ?? true,
     },
+    {
+      key: "hybrid_enabled" as const,
+      name: t("strategy_hybrid"),
+      description: t("strategy_hybrid_desc"),
+      enabled: botConfig?.hybrid_enabled ?? true,
+    },
   ];
 
-  const onToggleStrategy = (key: "roda_enabled" | "lch_enabled", enabled: boolean) => {
+  const onToggleStrategy = (key: "roda_enabled" | "lch_enabled" | "hybrid_enabled", enabled: boolean) => {
     updateConfig.mutate(
       { data: { [key]: enabled } },
       {

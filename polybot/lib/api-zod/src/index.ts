@@ -17,6 +17,7 @@ export const UpdateBotConfigBody = z.object({
   paper_capital_usd: z.number().optional(),
   roda_enabled: z.boolean().optional(),
   lch_enabled: z.boolean().optional(),
+  hybrid_enabled: z.boolean().optional(),
 });
 
 export const GetBotStatusResponse = z.object({
@@ -44,6 +45,7 @@ export const GetBotConfigResponse = z.object({
   paper_capital_usd: z.number(),
   roda_enabled: z.boolean(),
   lch_enabled: z.boolean(),
+  hybrid_enabled: z.boolean(),
   updated_at: z.string().nullable().optional(),
 });
 

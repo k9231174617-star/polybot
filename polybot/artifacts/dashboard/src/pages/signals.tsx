@@ -14,6 +14,7 @@ const SIGNAL_LABELS: Record<string, string> = {
   implied_prob: "Implied Probability",
   roda_oracle_lag: "RODA",
   lch_cascade: "LCH Cascade",
+  hybrid_roda_lch_cross: "Hybrid",
 };
 
 export default function Signals() {
