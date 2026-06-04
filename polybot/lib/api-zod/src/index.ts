@@ -18,6 +18,7 @@ export const UpdateBotConfigBody = z.object({
   roda_enabled: z.boolean().optional(),
   lch_enabled: z.boolean().optional(),
   hybrid_enabled: z.boolean().optional(),
+  mss2_enabled: z.boolean().optional(),
 });
 
 export const GetBotStatusResponse = z.object({
@@ -46,6 +47,7 @@ export const GetBotConfigResponse = z.object({
   roda_enabled: z.boolean(),
   lch_enabled: z.boolean(),
   hybrid_enabled: z.boolean(),
+  mss2_enabled: z.boolean(),
   updated_at: z.string().nullable().optional(),
 });
 

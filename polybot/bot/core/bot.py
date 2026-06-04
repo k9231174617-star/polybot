@@ -9,6 +9,7 @@ from bot.data.news import batch_sentiment
 from bot.analytics.engine import AnalyticsEngine
 from bot.analytics.calibration import load_calibration
 from bot.analytics.arbitrage import find_all_arb_signals
+from bot.analytics.mss2 import Mss2Scanner
 from bot.analytics.hybrid import detect_hybrid_signals
 from bot.analytics.roda import detect_roda_signals
 from bot.analytics.lch import LchDetector
@@ -33,6 +34,7 @@ class PolymarketBot:
         self._shutdown_event = asyncio.Event()
         self._paper: PaperExecutor | None = None
         self.lch_detector = LchDetector()
+        self.mss2_detector = Mss2Scanner()
 
     async def start(self):
         logger.info("Starting Polymarket bot...")
@@ -170,6 +172,10 @@ class PolymarketBot:
             **config,
             "hybrid_enabled": config.get("hybrid_enabled", settings.hybrid_enabled),
         }
+        mss2_config = {
+            **config,
+            "mss2_enabled": config.get("mss2_enabled", settings.mss2_enabled),
+        }
 
         async with PolymarketClient() as client:
             raw_list = await client.get_active_markets(limit=min(settings.max_markets_to_scan, 100))
@@ -195,6 +201,13 @@ class PolymarketBot:
                 kelly_fraction=dyn_kelly,
                 total_capital=capital,
             )
+            mss2_signals = await self.mss2_detector.detect_signals(
+                valid,
+                client=client,
+                config=mss2_config,
+                kelly_fraction=dyn_kelly,
+                total_capital=capital,
+            )
             for signal in roda_signals:
                 if await self._attempt_signal(signal, config, risk_mgr, paper_on, label="RODA"):
                     signals_found += 1
@@ -213,6 +226,11 @@ class PolymarketBot:
 
             for signal in hybrid_signals:
                 if await self._attempt_signal(signal, config, risk_mgr, paper_on, label="HYBRID"):
+                    signals_found += 1
+                    strategic_market_ids.add(signal["market_id"])
+
+            for signal in mss2_signals:
+                if await self._attempt_signal(signal, config, risk_mgr, paper_on, label="MSS2"):
                     signals_found += 1
                     strategic_market_ids.add(signal["market_id"])
 

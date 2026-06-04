@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     # Hybrid strategy
     hybrid_enabled: bool = Field(default=True, env="HYBRID_ENABLED")
 
+    # MSS2 strategy
+    mss2_enabled: bool = Field(default=True, env="MSS2_ENABLED")
+
     # External data sources
     coingecko_api_key: str = Field(default="", env="COINGECKO_API_KEY")
     news_api_key: str = Field(default="", env="NEWS_API_KEY")

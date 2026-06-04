@@ -36,6 +36,7 @@ export const botConfigTable = pgTable("bot_config", {
   roda_enabled: boolean("roda_enabled").notNull().default(true),
   lch_enabled: boolean("lch_enabled").notNull().default(true),
   hybrid_enabled: boolean("hybrid_enabled").notNull().default(true),
+  mss2_enabled: boolean("mss2_enabled").notNull().default(true),
   updated_at: timestamp("updated_at").defaultNow(),
 });
 

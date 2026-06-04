@@ -46,7 +46,7 @@ class OrderExecutor:
             "fee_usd": fee_usd,
             "realized_pnl": None,
             "tx_hash": f"0x{''.join(random.choices('0123456789abcdef', k=64))}" if not self.dry_run else None,
-            "order_type": "limit" if config.get("use_limit_orders") else "market",
+            "order_type": signal.get("order_type") or ("limit" if config.get("use_limit_orders") else "market"),
         }
 
         if self.dry_run:

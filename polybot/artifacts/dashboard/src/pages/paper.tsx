@@ -27,6 +27,7 @@ const SIGNAL_COLORS: Record<string, string> = {
   roda_oracle_lag: "hsl(30 90% 55%)",
   lch_cascade: "hsl(0 72% 60%)",
   hybrid_roda_lch_cross: "hsl(260 75% 58%)",
+  mss2_spread_capture: "hsl(38 92% 55%)",
 };
 
 const SIGNAL_LABELS: Record<string, string> = {
@@ -38,6 +39,7 @@ const SIGNAL_LABELS: Record<string, string> = {
   roda_oracle_lag: "RODA",
   lch_cascade: "LCH Cascade",
   hybrid_roda_lch_cross: "Hybrid",
+  mss2_spread_capture: "MSS2",
 };
 
 function StatCard({ label, value, sub, positive }: {
@@ -189,7 +191,7 @@ export default function Paper() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm text-foreground" title={p.market_question}>{p.market_question}</div>
-                      <div className="text-[10px] text-muted-foreground font-mono">{p.signal_type.replace(/_/g, " ")}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono">{SIGNAL_LABELS[p.signal_type] ?? p.signal_type.replace(/_/g, " ")}</div>
                     </div>
                     <span className={cn("font-mono text-[10px] px-1.5 py-0.5 rounded shrink-0", p.side === "YES" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive")}>{p.side}</span>
                   </div>
@@ -225,7 +227,7 @@ export default function Paper() {
                       <td className="px-3 py-2 text-right font-mono">{p.entry_price.toFixed(3)}</td>
                       <td className="px-3 py-2 text-right font-mono">{p.current_price.toFixed(3)}</td>
                       <td className={cn("px-3 py-2 text-right font-mono", p.unrealized_pnl >= 0 ? "text-success" : "text-destructive")}>{p.unrealized_pnl >= 0 ? "+" : ""}${p.unrealized_pnl.toFixed(2)}<span className="text-muted-foreground ml-1">({p.unrealized_pnl_pct.toFixed(1)}%)</span></td>
-                      <td className="px-3 py-2 text-[10px] text-muted-foreground font-mono">{p.signal_type.replace(/_/g, " ")}</td>
+                      <td className="px-3 py-2 text-[10px] text-muted-foreground font-mono">{SIGNAL_LABELS[p.signal_type] ?? p.signal_type.replace(/_/g, " ")}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -247,7 +249,7 @@ export default function Paper() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm text-foreground" title={tr.market_question}>{tr.market_question}</div>
-                      <div className="text-[10px] text-muted-foreground font-mono">{tr.signal_type.replace(/_/g, " ")}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono">{SIGNAL_LABELS[tr.signal_type] ?? tr.signal_type.replace(/_/g, " ")}</div>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <span className={cn("font-mono text-[10px] px-1.5 py-0.5 rounded uppercase", tr.action === "buy" ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground")}>{tr.action}</span>
@@ -286,7 +288,7 @@ export default function Paper() {
                       <td className="px-3 py-2 text-right font-mono">${tr.size_usd.toFixed(2)}</td>
                       <td className="px-3 py-2 text-right font-mono">{tr.price.toFixed(3)}</td>
                       <td className={cn("px-3 py-2 text-right font-mono", tr.realized_pnl == null ? "text-muted-foreground" : tr.realized_pnl >= 0 ? "text-success" : "text-destructive")}>{tr.realized_pnl == null ? "—" : `${tr.realized_pnl >= 0 ? "+" : ""}$${tr.realized_pnl.toFixed(2)}`}</td>
-                      <td className="px-3 py-2 text-[10px] text-muted-foreground font-mono">{tr.signal_type.replace(/_/g, " ")}</td>
+                      <td className="px-3 py-2 text-[10px] text-muted-foreground font-mono">{SIGNAL_LABELS[tr.signal_type] ?? tr.signal_type.replace(/_/g, " ")}</td>
                       <td className="px-3 py-2 text-right text-muted-foreground whitespace-nowrap">{new Date(tr.executed_at).toLocaleString()}</td>
                     </tr>
                   ))}

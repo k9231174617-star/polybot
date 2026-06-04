@@ -27,6 +27,7 @@ const SIGNAL_LABELS: Record<string, string> = {
   roda_oracle_lag: "RODA",
   lch_cascade: "LCH Cascade",
   hybrid_roda_lch_cross: "Hybrid",
+  mss2_spread_capture: "MSS2",
 };
 
 const SIGNAL_COLORS: Record<string, string> = {
@@ -38,6 +39,7 @@ const SIGNAL_COLORS: Record<string, string> = {
   roda_oracle_lag: "hsl(30 90% 55%)",
   lch_cascade: "hsl(0 72% 60%)",
   hybrid_roda_lch_cross: "hsl(260 75% 58%)",
+  mss2_spread_capture: "hsl(38 92% 55%)",
 };
 
 const STRATEGY_DEFS = [
@@ -55,6 +57,11 @@ const STRATEGY_DEFS = [
     key: "hybrid_roda_lch_cross",
     nameKey: "strategy_hybrid",
     descKey: "strategy_hybrid_desc",
+  },
+  {
+    key: "mss2_spread_capture",
+    nameKey: "strategy_mss2",
+    descKey: "strategy_mss2_desc",
   },
 ] as const;
 
@@ -182,9 +189,15 @@ export default function Strategies() {
       description: t("strategy_hybrid_desc"),
       enabled: botConfig?.hybrid_enabled ?? true,
     },
+    {
+      key: "mss2_enabled" as const,
+      name: t("strategy_mss2"),
+      description: t("strategy_mss2_desc"),
+      enabled: botConfig?.mss2_enabled ?? true,
+    },
   ];
 
-  const onToggleStrategy = (key: "roda_enabled" | "lch_enabled" | "hybrid_enabled", enabled: boolean) => {
+  const onToggleStrategy = (key: "roda_enabled" | "lch_enabled" | "hybrid_enabled" | "mss2_enabled", enabled: boolean) => {
     updateConfig.mutate(
       { data: { [key]: enabled } },
       {

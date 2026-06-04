@@ -15,6 +15,7 @@ const SIGNAL_LABELS: Record<string, string> = {
   roda_oracle_lag: "RODA",
   lch_cascade: "LCH Cascade",
   hybrid_roda_lch_cross: "Hybrid",
+  mss2_spread_capture: "MSS2",
 };
 
 export default function Signals() {
