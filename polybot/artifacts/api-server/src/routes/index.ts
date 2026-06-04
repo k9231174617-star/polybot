@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import readyRouter from "./readyz";
 import botRouter from "./bot";
 import marketsRouter from "./markets";
 import positionsRouter from "./positions";
@@ -14,6 +15,7 @@ import paperRouter from "./paper";
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(readyRouter);
 router.use(botRouter);
 router.use(marketsRouter);
 router.use(positionsRouter);

@@ -9,6 +9,13 @@ if (!databaseUrl) {
   throw new Error("DATABASE_URL environment variable is required.");
 }
 
-const pool = new Pool({ connectionString: databaseUrl });
+export const pool = new Pool({
+  connectionString: databaseUrl,
+  max: 5,
+  connectionTimeoutMillis: 5000,
+  idleTimeoutMillis: 30000,
+  options: "-c statement_timeout=5000 -c idle_in_transaction_session_timeout=10000",
+});
+
 export const db = drizzle(pool, { schema });
 export * from "./schema";

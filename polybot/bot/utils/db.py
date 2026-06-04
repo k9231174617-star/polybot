@@ -3,6 +3,7 @@ from typing import Any, Optional
 
 import asyncpg
 from loguru import logger
+from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
 
 from bot.config import settings
 
@@ -188,10 +189,38 @@ DEFAULT_BOT_CONFIG_SQL = """
 """
 
 
+async def _create_pool() -> asyncpg.Pool:
+    return await asyncpg.create_pool(
+        settings.database_url,
+        min_size=1,
+        max_size=5,
+        command_timeout=5,
+        timeout=10,
+        server_settings={
+            "application_name": "polybot",
+            "statement_timeout": "5000",
+            "idle_in_transaction_session_timeout": "10000",
+        },
+    )
+
+
 async def get_pool() -> asyncpg.Pool:
     global _pool
     if _pool is None:
-        _pool = await asyncpg.create_pool(settings.database_url, min_size=2, max_size=10)
+        retryable = (
+            OSError,
+            TimeoutError,
+            ConnectionError,
+            asyncpg.PostgresError,
+        )
+        async for attempt in AsyncRetrying(
+            stop=stop_after_attempt(5),
+            wait=wait_exponential_jitter(initial=1, max=10),
+            retry=retry_if_exception_type(retryable),
+            reraise=True,
+        ):
+            with attempt:
+                _pool = await _create_pool()
     return _pool
 
 

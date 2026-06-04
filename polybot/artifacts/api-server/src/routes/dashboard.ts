@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { positionsTable, signalsTable, tradesTable, botStateTable, marketsTable } from "@workspace/db";
-import { eq, gte, count, desc } from "drizzle-orm";
+import { positionsTable, signalsTable, tradesTable, botStateTable } from "@workspace/db";
+import { eq, gte, count } from "drizzle-orm";
 
 const router = Router();
 
@@ -9,33 +9,24 @@ router.get("/dashboard/summary", async (req, res) => {
   try {
     const TOTAL_CAPITAL = 1000;
 
-    const [botState] = await db.select().from(botStateTable).limit(1);
-
-    const openPositions = await db
-      .select()
-      .from(positionsTable)
-      .where(eq(positionsTable.status, "open"));
-
-    const unrealizedPnl = openPositions.reduce((sum, p) => sum + p.unrealized_pnl, 0);
-    const portfolioValue = TOTAL_CAPITAL + unrealizedPnl;
-
-    const [{ value: pendingSignals }] = await db
-      .select({ value: count() })
-      .from(signalsTable)
-      .where(eq(signalsTable.status, "pending"));
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const todayTrades = await db
-      .select()
-      .from(tradesTable)
-      .where(gte(tradesTable.executed_at, today));
+    const [botStateRows, openPositions, pendingSignalsRows, todayTrades, allTrades] = await Promise.all([
+      db.select().from(botStateTable).limit(1),
+      db.select().from(positionsTable).where(eq(positionsTable.status, "open")),
+      db.select({ value: count() }).from(signalsTable).where(eq(signalsTable.status, "pending")),
+      db.select().from(tradesTable).where(gte(tradesTable.executed_at, today)),
+      db.select().from(tradesTable),
+    ]);
 
+    const [botState] = botStateRows;
+    const [{ value: pendingSignals }] = pendingSignalsRows;
+
+    const unrealizedPnl = openPositions.reduce((sum, p) => sum + p.unrealized_pnl, 0);
+    const portfolioValue = TOTAL_CAPITAL + unrealizedPnl;
     const dailyPnl = todayTrades.reduce((sum, t) => sum + (t.realized_pnl ?? 0), 0);
     const dailyPnlPct = TOTAL_CAPITAL > 0 ? dailyPnl / TOTAL_CAPITAL : 0;
-
-    const allTrades = await db.select().from(tradesTable);
     const realizedPnl = allTrades.reduce((sum, t) => sum + (t.realized_pnl ?? 0), 0);
     const totalPnl = realizedPnl + unrealizedPnl;
     const totalPnlPct = TOTAL_CAPITAL > 0 ? totalPnl / TOTAL_CAPITAL : 0;
