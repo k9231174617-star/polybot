@@ -9,4 +9,4 @@ RUN pip install --no-cache-dir -r /app/polybot/bot/requirements.txt
 
 COPY polybot /app/polybot
 
-CMD ["python", "-m", "bot.main"]
+CMD ["python", "-m", "bot.entrypoint"]

@@ -45,6 +45,13 @@ export const translations = {
     risk_largest_position: "Largest Position",
     risk_var: "VaR 95%",
     risk_correlation: "Correlation Risk",
+    reconciliation_status: "Balance Sync",
+    reconciliation_delta: "Balance Delta",
+    reconciliation_updated: "Last Reconciled",
+    reconciliation_ok: "Synced",
+    reconciliation_warning: "Warning",
+    reconciliation_critical: "Critical",
+    reconciliation_unknown: "Unknown",
 
     // Markets page
     markets_title: "Market Scanner",
@@ -266,6 +273,13 @@ export const translations = {
     risk_largest_position: "Крупнейшая позиция",
     risk_var: "VaR 95%",
     risk_correlation: "Корреляционный риск",
+    reconciliation_status: "Сверка баланса",
+    reconciliation_delta: "Отклонение",
+    reconciliation_updated: "Последняя сверка",
+    reconciliation_ok: "Синхронизировано",
+    reconciliation_warning: "Предупреждение",
+    reconciliation_critical: "Критично",
+    reconciliation_unknown: "Неизвестно",
 
     // Markets page
     markets_title: "Сканер рынков",

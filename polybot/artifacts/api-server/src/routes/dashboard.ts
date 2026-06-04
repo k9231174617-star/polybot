@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { positionsTable, signalsTable, tradesTable, botStateTable } from "@workspace/db";
-import { eq, gte, count } from "drizzle-orm";
+import { positionsTable, signalsTable, tradesTable, botStateTable, balanceReconciliationSnapshotsTable } from "@workspace/db";
+import { eq, gte, count, desc } from "drizzle-orm";
 
 const router = Router();
 
@@ -12,16 +12,18 @@ router.get("/dashboard/summary", async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const [botStateRows, openPositions, pendingSignalsRows, todayTrades, allTrades] = await Promise.all([
+    const [botStateRows, openPositions, pendingSignalsRows, todayTrades, allTrades, latestReconciliationRows] = await Promise.all([
       db.select().from(botStateTable).limit(1),
       db.select().from(positionsTable).where(eq(positionsTable.status, "open")),
       db.select({ value: count() }).from(signalsTable).where(eq(signalsTable.status, "pending")),
       db.select().from(tradesTable).where(gte(tradesTable.executed_at, today)),
       db.select().from(tradesTable),
+      db.select().from(balanceReconciliationSnapshotsTable).orderBy(desc(balanceReconciliationSnapshotsTable.created_at)).limit(1),
     ]);
 
     const [botState] = botStateRows;
     const [{ value: pendingSignals }] = pendingSignalsRows;
+    const [latestReconciliation] = latestReconciliationRows;
 
     const unrealizedPnl = openPositions.reduce((sum, p) => sum + p.unrealized_pnl, 0);
     const portfolioValue = TOTAL_CAPITAL + unrealizedPnl;
@@ -49,6 +51,10 @@ router.get("/dashboard/summary", async (req, res) => {
       trades_today: todayTrades.length,
       win_rate: winRate,
       deployed_capital_pct: TOTAL_CAPITAL > 0 ? deployedCapital / TOTAL_CAPITAL : 0,
+      balance_reconciliation_status: latestReconciliation?.status ?? "unknown",
+      balance_reconciliation_discrepancy_usd: latestReconciliation?.discrepancy_usd ?? null,
+      balance_reconciliation_discrepancy_pct: latestReconciliation?.discrepancy_pct ?? null,
+      balance_reconciliation_updated_at: latestReconciliation?.created_at ? new Date(latestReconciliation.created_at).toISOString() : null,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get dashboard summary");

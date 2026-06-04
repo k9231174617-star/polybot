@@ -29,6 +29,10 @@ async def check_once(timeout_seconds: int) -> bool:
         stale = (datetime.now(timezone.utc) - updated_at).total_seconds() > timeout_seconds
 
     if stale:
+        current_state = str(row["state"] or "")
+        if current_state == "error":
+            logger.debug("Watchdog detected stale heartbeat but state is already error")
+            return False
         await send_telegram_alert(
             "error",
             "Dead man's switch triggered",

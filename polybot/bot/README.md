@@ -18,3 +18,8 @@ Paper trading is controlled by `bot_config.paper_trading`.
 When enabled, the bot uses real market data, writes into the `paper_*` tables, and does not send live CLOB orders.
 
 `DRY_RUN` only affects the live executor path.
+
+## Runtime modes
+
+Set `BOT_MODE=watchdog` to run the dead-man watchdog instead of the trading loop.
+The default mode is `BOT_MODE=bot`.

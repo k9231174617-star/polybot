@@ -784,6 +784,14 @@ components:
           type: number
         deployed_capital_pct:
           type: number
+        balance_reconciliation_status:
+          type: string
+        balance_reconciliation_discrepancy_usd:
+          type: ["number", "null"]
+        balance_reconciliation_discrepancy_pct:
+          type: ["number", "null"]
+        balance_reconciliation_updated_at:
+          type: ["string", "null"]
       required:
         - bot_state
         - portfolio_value_usd

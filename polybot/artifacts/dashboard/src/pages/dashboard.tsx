@@ -81,6 +81,11 @@ export default function Dashboard() {
   const positionsList = positions ?? [];
   const signalsList = signals ?? [];
   const logsList = logs ?? [];
+  const reconciliationStatus = String(summary?.balance_reconciliation_status ?? "unknown");
+  const reconciliationDeltaUsd = summary?.balance_reconciliation_discrepancy_usd ?? null;
+  const reconciliationDeltaPct = summary?.balance_reconciliation_discrepancy_pct ?? null;
+  const reconciliationUpdatedAt = summary?.balance_reconciliation_updated_at ?? null;
+  const reconciliationIsOk = reconciliationStatus === "ok" || reconciliationStatus === "synced";
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -253,6 +258,39 @@ export default function Dashboard() {
                   <span className={cn("text-xs font-mono font-bold tabular-nums", item.warn ? "text-[hsl(var(--warning))]" : "text-foreground")}>{item.value}</span>
                 </div>
               ))}
+              <div className="pt-2 border-t border-border/60 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="block text-[11px] text-muted-foreground">{t("reconciliation_status")}</span>
+                  <span className={cn(
+                    "text-xs font-mono font-bold tabular-nums uppercase",
+                    reconciliationIsOk ? "text-[hsl(var(--success))]" :
+                    reconciliationStatus === "warning" ? "text-[hsl(var(--warning))]" :
+                    reconciliationStatus === "critical" ? "text-destructive" : "text-muted-foreground"
+                  )}>
+                    {reconciliationStatus === "ok" ? t("reconciliation_ok") :
+                     reconciliationStatus === "warning" ? t("reconciliation_warning") :
+                     reconciliationStatus === "critical" ? t("reconciliation_critical") : t("reconciliation_unknown")}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="block text-[11px] text-muted-foreground">{t("reconciliation_delta")}</span>
+                  <span className={cn(
+                    "text-xs font-mono font-bold tabular-nums",
+                    (reconciliationDeltaUsd ?? 0) >= 0 ? "text-[hsl(var(--success))]" : "text-destructive"
+                  )}>
+                    {(reconciliationDeltaUsd ?? 0) >= 0 ? "+" : ""}${(reconciliationDeltaUsd ?? 0).toFixed(2)}
+                    <span className="text-[10px] text-muted-foreground ml-1">
+                      ({((reconciliationDeltaPct ?? 0) * 100).toFixed(2)}%)
+                    </span>
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="block text-[11px] text-muted-foreground">{t("reconciliation_updated")}</span>
+                  <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
+                    {reconciliationUpdatedAt ? new Date(reconciliationUpdatedAt).toLocaleString() : "—"}
+                  </span>
+                </div>
+              </div>
               <div>
                 <div className="h-1.5 bg-border rounded-full mt-2 overflow-hidden">
                   <div className={cn("h-full rounded-full transition-all",

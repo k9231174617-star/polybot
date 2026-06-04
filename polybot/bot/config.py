@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     telegram_chat_id: str = Field(default="", env="TELEGRAM_CHAT_ID")
     alerts_enabled: bool = Field(default=True, env="ALERTS_ENABLED")
     watchdog_timeout_seconds: int = Field(default=120, env="WATCHDOG_TIMEOUT_SECONDS")
+    bot_mode: str = Field(default="bot", env="BOT_MODE")
     reconciliation_enabled: bool = Field(default=True, env="RECONCILIATION_ENABLED")
     reconciliation_warning_pct: float = Field(default=0.01, env="RECONCILIATION_WARNING_PCT")
     reconciliation_critical_pct: float = Field(default=0.03, env="RECONCILIATION_CRITICAL_PCT")
