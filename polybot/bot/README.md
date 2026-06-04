@@ -12,6 +12,16 @@ export DRY_RUN=true
 python -m bot.main
 ```
 
+## Historical Backtest
+
+Replay historical market snapshots from a JSON or JSONL file:
+
+```bash
+python -m bot.backtest --input ./replays/sample.jsonl --json
+```
+
+Each snapshot should include a timestamp and a full market universe for that time step. Optional fields allow you to embed per-market news, trades, and orderbooks so the same strategy code can be replayed offline without live APIs.
+
 ## Paper Trading
 
 Paper trading is controlled by `bot_config.paper_trading`.

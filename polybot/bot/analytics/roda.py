@@ -98,13 +98,15 @@ async def detect_roda_signals(
     markets: list[dict],
     *,
     news_api_key: str = "",
+    news_articles_by_market: Optional[dict[str, list[dict]]] = None,
     config: Optional[dict] = None,
+    now: Optional[datetime] = None,
     kelly_fraction: float = 0.25,
     total_capital: float = 1000.0,
 ) -> list[dict]:
     cfg = config or {}
     enabled = cfg.get("roda_enabled", True)
-    if not enabled or not news_api_key:
+    if not enabled:
         return []
 
     min_confidence = cfg.get("roda_min_confidence", 0.95)
@@ -115,7 +117,7 @@ async def detect_roda_signals(
     max_position_pct = cfg.get("roda_max_position_pct", 0.10)
     hold_window_hours = float(cfg.get("roda_hold_window_hours", 12.0))
     engine = AnalyticsEngine()
-    now = datetime.now(timezone.utc)
+    now = now or datetime.now(timezone.utc)
 
     candidates: list[dict] = []
     for market in markets:
@@ -142,13 +144,19 @@ async def detect_roda_signals(
             continue
 
         end_date = market.get("end_date")
-        articles = await fetch_news_articles(
-            question,
-            api_key=news_api_key,
-            category=market.get("category", ""),
-            page_size=12,
-            since=end_date,
-        )
+        override_articles = (news_articles_by_market or {}).get(str(market["id"])) or market.get("news_articles")
+        if override_articles is not None:
+            articles = list(override_articles)
+        elif news_api_key:
+            articles = await fetch_news_articles(
+                question,
+                api_key=news_api_key,
+                category=market.get("category", ""),
+                page_size=12,
+                since=end_date,
+            )
+        else:
+            continue
         if not articles:
             continue
 

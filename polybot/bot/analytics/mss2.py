@@ -125,6 +125,7 @@ class Mss2Scanner:
         *,
         client,
         config: Optional[dict] = None,
+        now: Optional[datetime] = None,
         kelly_fraction: float = 0.25,
         total_capital: float = 1000.0,
     ) -> list[dict]:
@@ -151,7 +152,7 @@ class Mss2Scanner:
         exit_offset_bps = float(cfg.get("mss2_exit_offset_bps", 8.0))
         size_multiplier = float(cfg.get("mss2_size_multiplier", 0.7))
 
-        now = datetime.now(timezone.utc)
+        now = now or datetime.now(timezone.utc)
         candidates = []
         for market in markets:
             end_date = _utc(market.get("end_date"))

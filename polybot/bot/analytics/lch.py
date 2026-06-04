@@ -232,6 +232,7 @@ class LchDetector:
         *,
         client=None,
         config: Optional[dict] = None,
+        now: Optional[datetime] = None,
         kelly_fraction: float = 0.15,
         total_capital: float = 1000.0,
     ) -> list[dict]:
@@ -240,7 +241,7 @@ class LchDetector:
             return []
 
         lookback_hours = float(cfg.get("lch_lookback_hours", 1.0))
-        now = datetime.now(timezone.utc)
+        now = now or datetime.now(timezone.utc)
 
         for market in markets:
             if not market.get("id"):
