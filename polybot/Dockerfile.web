@@ -1,0 +1,20 @@
+FROM node:20-slim
+
+ENV NODE_ENV=production     CI=1
+
+WORKDIR /app/polybot
+
+COPY package.json ./package.json
+COPY package-lock.json ./package-lock.json
+COPY lib/db/package.json ./lib/db/package.json
+COPY lib/api-zod/package.json ./lib/api-zod/package.json
+COPY artifacts/api-server/package.json ./artifacts/api-server/package.json
+COPY artifacts/dashboard/package.json ./artifacts/dashboard/package.json
+
+RUN npm ci
+
+COPY . .
+RUN npm run build:dashboard
+
+EXPOSE 3000
+CMD ["npm", "run", "start:api"]

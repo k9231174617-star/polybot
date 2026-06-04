@@ -1,0 +1,6 @@
+{
+  "name": "@workspace/api-zod",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts"
+}

@@ -1,0 +1,6 @@
+{
+  "name": "@workspace/db",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts"
+}

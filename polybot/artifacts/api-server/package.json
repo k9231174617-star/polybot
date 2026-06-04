@@ -1,0 +1,8 @@
+{
+  "name": "@workspace/api-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts"
+  }
+}
