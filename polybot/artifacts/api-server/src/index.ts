@@ -19,5 +19,5 @@ app.listen(port, "0.0.0.0", (err) => {
     process.exit(1);
   }
 
-  logger.info({ port }, "Server listening");
+  logger.info({ port }, `Server listening on port ${port}`);
 });
