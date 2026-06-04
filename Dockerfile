@@ -7,6 +7,6 @@ WORKDIR /app/polybot
 COPY polybot/bot/requirements.txt /app/polybot/bot/requirements.txt
 RUN pip install --no-cache-dir -r /app/polybot/bot/requirements.txt
 
-COPY polybot /app/polybot
+COPY polybot/bot /app/polybot/bot
 
 CMD ["python", "-m", "bot.entrypoint"]
