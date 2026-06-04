@@ -41,7 +41,7 @@ function SignalTypeBadge({ type }: { type: string }) {
     momentum: "MOM",
     sentiment_lag: "SENT",
     implied_prob: "IMP",
-    roda_oracle_lag: "RODA",
+    roda_oracle_lag: "Resolution Lag Arb",
     lch_cascade: "LCH",
     hybrid_roda_lch_cross: "HYB",
     mss2_spread_capture: "MSS2",

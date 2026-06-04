@@ -218,7 +218,7 @@ class Mss2Scanner:
                 try:
                     last_trade_price = float(trade.get("price", last_trade_price) or last_trade_price)
                 except (TypeError, ValueError):
-                    pass
+                    logger.debug("MSS2 trade price parse failed; keeping last known price")
                 if last_trade_time is None or ts > last_trade_time:
                     last_trade_time = ts
 
@@ -299,6 +299,7 @@ class Mss2Scanner:
                 side_candidates.append({
                     "market_id": market["id"],
                     "market_question": market.get("question", ""),
+                    "market_category": market.get("category", ""),
                     "signal_type": "mss2_spread_capture",
                     "direction": side,
                     "order_type": "limit",

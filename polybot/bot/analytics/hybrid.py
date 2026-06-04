@@ -1,4 +1,4 @@
-"""Hybrid strategy that combines RODA confirmation with cross-market confirmation."""
+"""Hybrid strategy that combines Resolution Lag Arb confirmation with cross-market confirmation."""
 from __future__ import annotations
 
 from collections import defaultdict
@@ -124,6 +124,7 @@ async def detect_hybrid_signals(
         signals.append({
             "market_id": market_id,
             "market_question": market.get("question", roda.get("market_question", "")),
+            "market_category": market.get("category", ""),
             "signal_type": "hybrid_roda_lch_cross",
             "direction": roda.get("direction", "YES"),
             "market_price": yes_price,

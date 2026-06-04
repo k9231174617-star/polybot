@@ -1,4 +1,4 @@
-"""RODA detector — resolution-lag arbitrage on unresolved markets."""
+"""Resolution Lag Arb detector — confirmation on unresolved markets."""
 from __future__ import annotations
 
 import re
@@ -202,6 +202,7 @@ async def detect_roda_signals(
         signal = {
             "market_id": market["id"],
             "market_question": question,
+            "market_category": market.get("category", ""),
             "signal_type": "roda_oracle_lag",
             "direction": direction,
             "market_price": yes_price,
@@ -218,5 +219,5 @@ async def detect_roda_signals(
         signals.append(signal)
 
     signals.sort(key=lambda s: (s["confidence"], abs(s["edge"])), reverse=True)
-    logger.info(f"RODA detected {len(signals)} opportunities")
+    logger.info(f"Resolution Lag Arb detected {len(signals)} opportunities")
     return signals

@@ -13,10 +13,28 @@ class Settings(BaseSettings):
     polymarket_api_key: str = Field(default="", env="POLYMARKET_API_KEY")
     polymarket_api_secret: str = Field(default="", env="POLYMARKET_API_SECRET")
     polymarket_api_passphrase: str = Field(default="", env="POLYMARKET_API_PASSPHRASE")
+    polymarket_funder_address: str = Field(default="", env="POLYMARKET_FUNDER_ADDRESS")
+    polymarket_signature_type: int = Field(default=0, env="POLYMARKET_SIGNATURE_TYPE")
 
     # Redis (optional cache)
     redis_url: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
     use_redis: bool = Field(default=False, env="USE_REDIS")
+
+    # Alerts / watchdog
+    telegram_bot_token: str = Field(default="", env="TELEGRAM_BOT_TOKEN")
+    telegram_chat_id: str = Field(default="", env="TELEGRAM_CHAT_ID")
+    alerts_enabled: bool = Field(default=True, env="ALERTS_ENABLED")
+    watchdog_timeout_seconds: int = Field(default=120, env="WATCHDOG_TIMEOUT_SECONDS")
+    reconciliation_enabled: bool = Field(default=True, env="RECONCILIATION_ENABLED")
+    reconciliation_warning_pct: float = Field(default=0.01, env="RECONCILIATION_WARNING_PCT")
+    reconciliation_critical_pct: float = Field(default=0.03, env="RECONCILIATION_CRITICAL_PCT")
+    reconciliation_warning_usd: float = Field(default=5.0, env="RECONCILIATION_WARNING_USD")
+    reconciliation_critical_usd: float = Field(default=25.0, env="RECONCILIATION_CRITICAL_USD")
+    log_retention_days: int = Field(default=30, env="LOG_RETENTION_DAYS")
+    snapshot_retention_days: int = Field(default=365, env="SNAPSHOT_RETENTION_DAYS")
+    trade_retention_days: int = Field(default=730, env="TRADE_RETENTION_DAYS")
+    signal_retention_days: int = Field(default=365, env="SIGNAL_RETENTION_DAYS")
+    market_retention_days: int = Field(default=180, env="MARKET_RETENTION_DAYS")
 
     # Bot behaviour
     dry_run: bool = Field(default=True, env="DRY_RUN")

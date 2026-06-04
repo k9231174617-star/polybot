@@ -9,6 +9,7 @@ import statistics
 from typing import Optional
 from loguru import logger
 
+from bot.execution.fees import estimate_taker_fee
 from bot.utils.db import get_pool, log_entry
 
 
@@ -46,12 +47,17 @@ class PaperExecutor:
         slippage = random.uniform(0.001, 0.004)
         yes_price = signal["market_price"]
         d = signal["direction"]
+        category = str(signal.get("market_category") or "")
         exec_price = _token_price(d, yes_price)
         exec_price = max(0.01, min(0.99, exec_price * (1 + slippage)))
         size = signal["kelly_size_usd"]
-        fee = size * 0.002
+        fee = estimate_taker_fee(size, yes_price, d, category=category)
 
         async with pool.acquire() as conn:
+            row_market = await conn.fetchrow("SELECT category FROM markets WHERE id = $1", signal["market_id"])
+            if row_market and row_market["category"]:
+                category = str(row_market["category"])
+                fee = estimate_taker_fee(size, yes_price, d, category=category)
             tid = await conn.fetchval("""
                 INSERT INTO paper_trades
                   (market_id, market_question, side, action, size_usd, price, slippage, fee_usd, realized_pnl, signal_type)
@@ -101,6 +107,9 @@ class PaperExecutor:
     async def _close_position(self, conn, row, final_yes_price: float):
         final_token_price = _token_price(row["side"], final_yes_price)
         realized = (final_token_price - row["entry_price"]) * row["size_usd"] / row["entry_price"]
+        row_market = await conn.fetchrow("SELECT category FROM markets WHERE id = $1", row["market_id"])
+        category = str(row_market["category"]) if row_market and row_market["category"] else ""
+        fee = estimate_taker_fee(float(row["size_usd"] or 0.0), final_yes_price, str(row["side"]), category=category)
 
         await conn.execute(
             "UPDATE paper_positions SET status='closed',closed_at=NOW(),unrealized_pnl=0,unrealized_pnl_pct=0,current_price=$1 WHERE id=$2",
@@ -108,9 +117,9 @@ class PaperExecutor:
         )
         await conn.execute("""
             INSERT INTO paper_trades (market_id, market_question, side, action, size_usd, price, slippage, fee_usd, realized_pnl, signal_type)
-            SELECT market_id, market_question, side, 'sell', size_usd, $1, 0, size_usd*0.002, $2, signal_type
-            FROM paper_positions WHERE id=$3
-        """, final_token_price, realized, row["id"])
+            SELECT market_id, market_question, side, 'sell', size_usd, $1, 0, $2, $3, signal_type
+            FROM paper_positions WHERE id=$4
+        """, final_token_price, fee, realized - fee, row["id"])
         logger.info(f"[PAPER] Position closed realized={realized:+.2f}")
 
     async def snapshot_pnl(self):

@@ -118,7 +118,7 @@ class PolymarketClient:
                 if end_date.tzinfo is not None:
                     end_date = end_date.astimezone(timezone.utc).replace(tzinfo=None)
             except Exception:
-                pass
+                logger.debug("Failed to parse market end_date; leaving it unset")
 
         return {
             "id": raw.get("id", raw.get("conditionId", "")),

@@ -5,6 +5,7 @@ from loguru import logger
 
 from bot.config import settings
 from bot.data.polymarket import PolymarketClient
+from bot.data.polymarket_ws import PolymarketMarketStream
 from bot.data.news import batch_sentiment
 from bot.analytics.engine import AnalyticsEngine
 from bot.analytics.calibration import load_calibration
@@ -15,10 +16,13 @@ from bot.analytics.roda import detect_roda_signals
 from bot.analytics.lch import LchDetector
 from bot.execution.orders import OrderExecutor
 from bot.execution.paper import PaperExecutor
+from bot.notifications.mss2 import notify_mss2_event
+from bot.notifications import send_telegram_alert
 from bot.risk.manager import RiskManager
+from bot.risk.mss2 import Mss2RiskManager
 from bot.risk.dynamic_kelly import KellyTracker
 from bot.utils.db import (
-    ensure_schema, update_bot_state, upsert_market, insert_signal, log_entry,
+    ensure_schema, apply_retention_policy, update_bot_state, upsert_market, insert_signal, log_entry,
     snapshot_pnl, get_bot_config, get_pool, close_pool,
 )
 
@@ -35,17 +39,31 @@ class PolymarketBot:
         self._paper: PaperExecutor | None = None
         self.lch_detector = LchDetector()
         self.mss2_detector = Mss2Scanner()
+        self.mss2_risk = Mss2RiskManager()
+        self.market_stream = PolymarketMarketStream()
+        self._market_stream_task: asyncio.Task | None = None
 
     async def start(self):
         logger.info("Starting Polymarket bot...")
         await ensure_schema()
         self.running = True
         await update_bot_state("running", markets_scanned=0, pid=os.getpid())
+        try:
+            await apply_retention_policy()
+        except Exception as exc:
+            logger.debug(f"Initial retention skipped: {exc}")
         await log_entry("bot", "info", "Bot started", {
             "dry_run": settings.dry_run, "pid": os.getpid(),
             "news_api": bool(settings.news_api_key),
         })
+        await send_telegram_alert(
+            "info",
+            "Bot started",
+            f"Polymarket bot started in {'paper' if settings.dry_run else 'live'} mode",
+            {"pid": os.getpid(), "paper_mode": settings.dry_run},
+        )
         asyncio.create_task(self._load_calibration())
+        self._market_stream_task = asyncio.create_task(self.market_stream.run())
         try:
             await self.run_loop()
         except asyncio.CancelledError:
@@ -55,6 +73,13 @@ class PolymarketBot:
             await update_bot_state("error", error_message=str(e))
             await log_entry("bot", "error", f"Bot crashed: {e}")
         finally:
+            await self.market_stream.stop()
+            if self._market_stream_task:
+                self._market_stream_task.cancel()
+                try:
+                    await self._market_stream_task
+                except BaseException as exc:
+                    logger.debug(f"Market stream task stopped with: {exc}")
             await update_bot_state("stopped")
             await log_entry("bot", "info", "Bot stopped")
             await close_pool()
@@ -82,7 +107,7 @@ class PolymarketBot:
                 )
                 break
             except asyncio.TimeoutError:
-                pass
+                continue
 
     async def _attempt_signal(self, signal: dict, config: dict, risk_mgr: RiskManager, paper_on: bool, label: str = "") -> bool:
         try:
@@ -181,6 +206,10 @@ class PolymarketBot:
             raw_list = await client.get_active_markets(limit=min(settings.max_markets_to_scan, 100))
             parsed = [client.parse_market(r) for r in raw_list]
             valid = [m for m in parsed if m.get("id")]
+            try:
+                await self.market_stream.update_watchlist(valid)
+            except Exception as exc:
+                logger.debug(f"Market stream watchlist update failed: {exc}")
 
             sentiment_map = await batch_sentiment(valid, api_key=settings.news_api_key)
 
@@ -203,7 +232,7 @@ class PolymarketBot:
             )
             mss2_signals = await self.mss2_detector.detect_signals(
                 valid,
-                client=client,
+                client=self.market_stream,
                 config=mss2_config,
                 kelly_fraction=dyn_kelly,
                 total_capital=capital,
@@ -215,6 +244,7 @@ class PolymarketBot:
 
             lch_signals = await self.lch_detector.detect_signals(
                 valid,
+                client=self.market_stream,
                 config=lch_config,
                 kelly_fraction=settings.lch_kelly_fraction,
                 total_capital=capital,
@@ -230,6 +260,21 @@ class PolymarketBot:
                     strategic_market_ids.add(signal["market_id"])
 
             for signal in mss2_signals:
+                mss2_risk = await self.mss2_risk.assess_trade(signal, paper_mode=paper_on)
+                if not mss2_risk.can_trade:
+                    await notify_mss2_event(
+                        "warning",
+                        f"Blocked: {mss2_risk.reason}",
+                        {"market_id": signal.get("market_id"), "signal_type": signal.get("signal_type")},
+                    )
+                    continue
+                if mss2_risk.size_multiplier != 1.0:
+                    signal = {
+                        **signal,
+                        "kelly_size_usd": signal["kelly_size_usd"] * mss2_risk.size_multiplier,
+                        "mss2_size_multiplier": mss2_risk.size_multiplier,
+                        "risk_level": mss2_risk.risk_level,
+                    }
                 if await self._attempt_signal(signal, config, risk_mgr, paper_on, label="MSS2"):
                     signals_found += 1
                     strategic_market_ids.add(signal["market_id"])
@@ -278,8 +323,16 @@ class PolymarketBot:
                 await self._paper.snapshot_pnl()
             else:
                 await self.executor.update_positions(market_prices)
+                await self.executor.reconcile_live_orders()
+                if config.get("reconciliation_enabled", settings.reconciliation_enabled):
+                    await self.executor.reconcile_live_balance(capital_usd=capital, config=config)
 
         self.scan_count += 1
+        if self.scan_count % max(1, int(config.get("retention_scan_interval", 48))) == 0:
+            try:
+                await apply_retention_policy()
+            except Exception as exc:
+                logger.debug(f"Retention policy run skipped: {exc}")
         await update_bot_state("running", markets_scanned=markets_scanned)
         pnl = cur_pnl if paper_on and self._paper else await self._total_pnl()
         await snapshot_pnl(pnl, capital + pnl)

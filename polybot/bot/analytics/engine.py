@@ -42,6 +42,7 @@ class AnalyticsEngine:
                     mid = (float(bids[0]["price"]) + float(asks[0]["price"])) / 2
                     prob = 0.7 * prob + 0.3 * mid
                 except (KeyError, ValueError, IndexError):
+                    # Ignore malformed orderbook levels and keep the existing probability estimate.
                     pass
 
         if sentiment_score != 0.0:

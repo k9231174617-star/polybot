@@ -1,0 +1,7 @@
+node_modules/
+dist/
+artifacts/dashboard/dist/
+__pycache__/
+*.pyc
+.pytest_cache/
+.vite/

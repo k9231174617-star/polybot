@@ -57,6 +57,81 @@ class LchDetector:
             return None
         return max(0.0, (end_date - now).total_seconds() / 3600.0)
 
+    def _parse_trade(self, trade: dict, now: datetime) -> Optional[dict]:
+        raw_ts = (
+            trade.get("timestamp")
+            or trade.get("createdAt")
+            or trade.get("created_at")
+            or trade.get("time")
+            or trade.get("executed_at")
+        )
+        if isinstance(raw_ts, datetime):
+            ts = _utc(raw_ts)
+        elif isinstance(raw_ts, str):
+            try:
+                ts = _utc(datetime.fromisoformat(raw_ts.replace("Z", "+00:00")))
+            except Exception:
+                ts = None
+        else:
+            ts = None
+        if ts is None:
+            return None
+        return {
+            "timestamp": min(ts, now),
+            "price": float(trade.get("price", 0.0) or 0.0),
+            "size": float(trade.get("size", trade.get("quantity", trade.get("amount", 0.0))) or 0.0),
+            "wallet": str(trade.get("wallet") or trade.get("address") or trade.get("trader") or ""),
+            "side": str(trade.get("side") or trade.get("taker_side") or trade.get("direction") or "").upper(),
+        }
+
+    def _wash_trading_score(self, trades: list[dict], now: datetime) -> float:
+        parsed = [item for item in (self._parse_trade(trade, now) for trade in trades) if item is not None]
+        recent = [trade for trade in parsed if (now - trade["timestamp"]).total_seconds() <= 1800]
+        if len(recent) < 6:
+            return 0.0
+
+        price_buckets: dict[float, int] = defaultdict(int)
+        size_buckets: dict[float, int] = defaultdict(int)
+        wallet_buckets: dict[str, int] = defaultdict(int)
+        for trade in recent:
+            price_buckets[round(trade["price"], 3)] += 1
+            size_buckets[round(trade["size"], 1)] += 1
+            if trade["wallet"]:
+                wallet_buckets[trade["wallet"]] += 1
+
+        total = len(recent)
+        top_price_share = max(price_buckets.values()) / total if price_buckets else 0.0
+        top_size_share = max(size_buckets.values()) / total if size_buckets else 0.0
+        top_wallet_share = max(wallet_buckets.values()) / total if wallet_buckets else 0.0
+
+        sorted_times = sorted(trade["timestamp"] for trade in recent)
+        gaps = [
+            (b - a).total_seconds()
+            for a, b in zip(sorted_times, sorted_times[1:])
+            if (b - a).total_seconds() >= 0
+        ]
+        avg_gap = sum(gaps) / len(gaps) if gaps else 0.0
+        burst_score = 1.0 if avg_gap <= 5.0 else 0.75 if avg_gap <= 15.0 else 0.4 if avg_gap <= 30.0 else 0.1
+
+        side_changes = 0
+        last_side = ""
+        for trade in recent:
+            side = trade["side"]
+            if side and last_side and side != last_side:
+                side_changes += 1
+            if side:
+                last_side = side
+        side_flip_score = 1.0 - min(1.0, side_changes / max(total - 1, 1)) if total > 1 else 0.0
+
+        score = (
+            0.32 * top_price_share
+            + 0.20 * top_size_share
+            + 0.18 * top_wallet_share
+            + 0.16 * burst_score
+            + 0.14 * side_flip_score
+        )
+        return _clamp(score, 0.0, 1.0)
+
     def _build_signal(
         self,
         market: dict,
@@ -155,6 +230,7 @@ class LchDetector:
         self,
         markets: list[dict],
         *,
+        client=None,
         config: Optional[dict] = None,
         kelly_fraction: float = 0.15,
         total_capital: float = 1000.0,
@@ -181,8 +257,20 @@ class LchDetector:
                 continue
 
             current = history[-1]
+            wash_score = 0.0
+            if client is not None and hasattr(client, "get_trades"):
+                try:
+                    trades = await client.get_trades(market_id, limit=40)
+                    wash_score = self._wash_trading_score(trades, now)
+                except Exception as exc:
+                    logger.debug(f"LCH trade fetch error for {market_id}: {exc}")
+            if wash_score >= float(cfg.get("lch_max_wash_trading_score", 0.72)):
+                continue
+
             signal = self._build_signal(market, current, history, cfg, total_capital, kelly_fraction, now)
             if signal:
+                signal["market_category"] = market.get("category", "")
+                signal["lch_wash_trading_score"] = wash_score
                 signals.append(signal)
 
         signals.sort(key=lambda s: (s["confidence"], abs(s["edge"])), reverse=True)

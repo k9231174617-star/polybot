@@ -24,7 +24,7 @@ const SIGNAL_LABELS: Record<string, string> = {
   momentum: "Momentum",
   sentiment_lag: "Sentiment Lag",
   implied_prob: "Implied Probability",
-  roda_oracle_lag: "RODA",
+  roda_oracle_lag: "Resolution Lag Arb",
   lch_cascade: "LCH Cascade",
   hybrid_roda_lch_cross: "Hybrid",
   mss2_spread_capture: "MSS2",
@@ -104,6 +104,7 @@ export default function Strategies() {
 
   const rows = useMemo(() => {
     const paperByType = paperStats?.by_signal_type ?? {};
+    const reportByType = paperStats?.strategy_reports ?? {};
     const signalAgg: Record<string, { total: number; pending: number; avgEdge: number; avgConf: number }> = {};
     for (const signal of signals) {
       const key = String(signal.signal_type ?? "unknown");
@@ -134,6 +135,7 @@ export default function Strategies() {
 
     return Array.from(types).map((type) => {
       const paper = paperByType[type] ?? { total: 0, wins: 0, pnl: 0, win_rate: 0 };
+      const report = reportByType[type] ?? {};
       const signalsForType = signalAgg[type] ?? { total: 0, pending: 0, avgEdge: 0, avgConf: 0 };
       const open = openAgg[type] ?? { count: 0, exposure: 0 };
       const totalSignals = signalsForType.total || 0;
@@ -144,6 +146,10 @@ export default function Strategies() {
         totalTrades: Number(paper.total ?? 0),
         wins: Number(paper.wins ?? 0),
         winRate: Number(paper.win_rate ?? 0),
+        maxDrawdown: Number(report.max_drawdown_pct ?? 0),
+        sharpe: Number(report.sharpe_ratio ?? 0),
+        sortino: Number(report.sortino_ratio ?? 0),
+        avgHoldTime: Number(report.avg_hold_time_seconds ?? 0),
         pendingSignals: signalsForType.pending,
         liveSignals: signalsForType.total,
         openPositions: open.count,
@@ -229,6 +235,20 @@ export default function Strategies() {
           <Sparkles className="w-4 h-4 text-primary" />
           <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("strategy_controls")}
+          </div>
+        </div>
+        <div className={cn(
+          "rounded-md border p-3 text-[10px] leading-5",
+          botConfig?.paper_trading
+            ? "border-warning/30 bg-warning/10 text-warning"
+            : "border-success/30 bg-success/10 text-success",
+        )}>
+          <div className="font-semibold uppercase tracking-wider">{t("strategy_live_execution")}</div>
+          <div className="mt-1 text-muted-foreground">
+            {t("strategy_live_execution_desc")}
+          </div>
+          <div className="mt-2 font-mono uppercase">
+            {botConfig?.paper_trading ? t("strategy_live_execution_paper") : t("strategy_live_execution_ready")}
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -325,6 +345,12 @@ export default function Strategies() {
                   <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-muted-foreground">
                     <div>{t("strategy_avg_edge")}: <span className={cn("text-foreground tabular-nums", row.avgEdge >= 0 ? "text-success" : "text-destructive")}>{row.avgEdge >= 0 ? "+" : ""}{(row.avgEdge * 100).toFixed(2)}%</span></div>
                     <div className="text-right">{t("strategy_avg_confidence")}: <span className="text-foreground tabular-nums">{(row.avgConf * 100).toFixed(0)}%</span></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-muted-foreground">
+                    <div>{t("strategy_max_drawdown")}: <span className="text-foreground tabular-nums">{row.maxDrawdown.toFixed(2)}%</span></div>
+                    <div className="text-right">{t("strategy_sharpe")}: <span className="text-foreground tabular-nums">{Number.isFinite(row.sharpe) ? row.sharpe.toFixed(2) : "∞"}</span></div>
+                    <div>{t("strategy_sortino")}: <span className="text-foreground tabular-nums">{Number.isFinite(row.sortino) ? row.sortino.toFixed(2) : "∞"}</span></div>
+                    <div className="text-right">Hold: <span className="text-foreground tabular-nums">{row.avgHoldTime.toFixed(0)}s</span></div>
                   </div>
                 </div>
               ))}

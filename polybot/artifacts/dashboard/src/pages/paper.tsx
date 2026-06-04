@@ -36,7 +36,7 @@ const SIGNAL_LABELS: Record<string, string> = {
   cross_market_arb: "Cross-Market Arb",
   sentiment_lag: "Sentiment Lag",
   implied_prob: "Implied Probability",
-  roda_oracle_lag: "RODA",
+  roda_oracle_lag: "Resolution Lag Arb",
   lch_cascade: "LCH Cascade",
   hybrid_roda_lch_cross: "Hybrid",
   mss2_spread_capture: "MSS2",

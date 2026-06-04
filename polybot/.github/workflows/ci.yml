@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python-and-dashboard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: polybot
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: polybot/package-lock.json
+
+      - name: Install Python dependencies
+        run: pip install -r bot/requirements.txt
+
+      - name: Python compile check
+        run: python -m compileall bot
+
+      - name: Python unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build dashboard
+        run: npm run build:dashboard

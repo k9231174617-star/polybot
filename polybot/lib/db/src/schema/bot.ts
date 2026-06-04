@@ -1,5 +1,6 @@
 import {
   pgTable,
+  index,
   serial,
   text,
   real,
@@ -19,7 +20,9 @@ export const botStateTable = pgTable("bot_state", {
   error_message: text("error_message"),
   pid: integer("pid"),
   updated_at: timestamp("updated_at").defaultNow(),
-});
+}, (t) => ({
+  stateUpdatedAtIdx: index("bot_state_state_updated_at_idx").on(t.state, t.updated_at),
+}));
 
 export const botConfigTable = pgTable("bot_config", {
   id: serial("id").primaryKey(),
@@ -33,12 +36,20 @@ export const botConfigTable = pgTable("bot_config", {
   max_correlated_exposure_pct: real("max_correlated_exposure_pct").notNull().default(0.15),
   paper_trading: boolean("paper_trading").notNull().default(true),
   paper_capital_usd: real("paper_capital_usd").notNull().default(1000),
+  retention_scan_interval: integer("retention_scan_interval").notNull().default(48),
+  reconciliation_enabled: boolean("reconciliation_enabled").notNull().default(true),
+  reconciliation_warning_pct: real("reconciliation_warning_pct").notNull().default(0.01),
+  reconciliation_critical_pct: real("reconciliation_critical_pct").notNull().default(0.03),
+  reconciliation_warning_usd: real("reconciliation_warning_usd").notNull().default(5.0),
+  reconciliation_critical_usd: real("reconciliation_critical_usd").notNull().default(25.0),
   roda_enabled: boolean("roda_enabled").notNull().default(true),
   lch_enabled: boolean("lch_enabled").notNull().default(true),
   hybrid_enabled: boolean("hybrid_enabled").notNull().default(true),
   mss2_enabled: boolean("mss2_enabled").notNull().default(true),
   updated_at: timestamp("updated_at").defaultNow(),
-});
+}, (t) => ({
+  updatedAtIdx: index("bot_config_updated_at_idx").on(t.updated_at),
+}));
 
 export const marketsTable = pgTable("markets", {
   id: text("id").primaryKey(),
@@ -53,7 +64,10 @@ export const marketsTable = pgTable("markets", {
   end_date: timestamp("end_date"),
   status: text("status").notNull().default("active"),
   last_updated: timestamp("last_updated").defaultNow(),
-});
+}, (t) => ({
+  statusEndDateIdx: index("markets_status_end_date_idx").on(t.status, t.end_date),
+  categoryLastUpdatedIdx: index("markets_category_last_updated_idx").on(t.category, t.last_updated),
+}));
 
 export const positionsTable = pgTable("positions", {
   id: serial("id").primaryKey(),
@@ -67,10 +81,17 @@ export const positionsTable = pgTable("positions", {
   unrealized_pnl_pct: real("unrealized_pnl_pct").notNull().default(0),
   entry_edge: real("entry_edge").notNull().default(0),
   current_edge: real("current_edge"),
+  order_id: text("order_id"),
+  order_status: text("order_status").notNull().default("open"),
+  filled_size_usd: real("filled_size_usd").notNull().default(0),
+  remaining_size_usd: real("remaining_size_usd").notNull().default(0),
   opened_at: timestamp("opened_at").defaultNow(),
   closed_at: timestamp("closed_at"),
   status: text("status").notNull().default("open"),
-});
+}, (t) => ({
+  statusMarketIdIdx: index("positions_status_market_id_idx").on(t.status, t.market_id),
+  orderIdIdx: index("positions_order_id_idx").on(t.order_id),
+}));
 
 export const signalsTable = pgTable("signals", {
   id: serial("id").primaryKey(),
@@ -86,7 +107,10 @@ export const signalsTable = pgTable("signals", {
   status: text("status").notNull().default("pending"),
   detected_at: timestamp("detected_at").defaultNow(),
   acted_at: timestamp("acted_at"),
-});
+}, (t) => ({
+  statusDetectedAtIdx: index("signals_status_detected_at_idx").on(t.status, t.detected_at),
+  marketIdIdx: index("signals_market_id_idx").on(t.market_id),
+}));
 
 export const tradesTable = pgTable("trades", {
   id: serial("id").primaryKey(),
@@ -100,16 +124,26 @@ export const tradesTable = pgTable("trades", {
   fee_usd: real("fee_usd").notNull().default(0),
   realized_pnl: real("realized_pnl"),
   tx_hash: text("tx_hash"),
+  order_id: text("order_id"),
+  order_status: text("order_status").notNull().default("filled"),
+  filled_size_usd: real("filled_size_usd").notNull().default(0),
+  remaining_size_usd: real("remaining_size_usd").notNull().default(0),
   executed_at: timestamp("executed_at").defaultNow(),
   order_type: text("order_type").notNull().default("market"),
-});
+}, (t) => ({
+  orderIdIdx: index("trades_order_id_idx").on(t.order_id),
+  statusExecutedAtIdx: index("trades_status_executed_at_idx").on(t.order_status, t.executed_at),
+  marketIdIdx: index("trades_market_id_idx").on(t.market_id),
+}));
 
 export const pnlSnapshotsTable = pgTable("pnl_snapshots", {
   id: serial("id").primaryKey(),
   cumulative_pnl: real("cumulative_pnl").notNull(),
   portfolio_value: real("portfolio_value").notNull(),
   created_at: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  createdAtIdx: index("pnl_snapshots_created_at_idx").on(t.created_at),
+}));
 
 export const logEntriesTable = pgTable("log_entries", {
   id: serial("id").primaryKey(),
@@ -118,7 +152,9 @@ export const logEntriesTable = pgTable("log_entries", {
   message: text("message").notNull(),
   details: jsonb("details"),
   created_at: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  createdAtIdx: index("log_entries_created_at_idx").on(t.created_at),
+}));
 
 // ── Paper Trading ───────────────────────────────────────────────────────────
 
@@ -138,7 +174,10 @@ export const paperPositionsTable = pgTable("paper_positions", {
   opened_at: timestamp("opened_at").defaultNow(),
   closed_at: timestamp("closed_at"),
   status: text("status").notNull().default("open"),
-});
+}, (t) => ({
+  statusOpenedAtIdx: index("paper_positions_status_opened_at_idx").on(t.status, t.opened_at),
+  marketIdIdx: index("paper_positions_market_id_idx").on(t.market_id),
+}));
 
 export const paperTradesTable = pgTable("paper_trades", {
   id: serial("id").primaryKey(),
@@ -152,8 +191,15 @@ export const paperTradesTable = pgTable("paper_trades", {
   fee_usd: real("fee_usd").notNull().default(0),
   realized_pnl: real("realized_pnl"),
   signal_type: text("signal_type").notNull().default("price_discrepancy"),
+  order_id: text("order_id"),
+  order_status: text("order_status").notNull().default("filled"),
+  filled_size_usd: real("filled_size_usd").notNull().default(0),
+  remaining_size_usd: real("remaining_size_usd").notNull().default(0),
   executed_at: timestamp("executed_at").defaultNow(),
-});
+}, (t) => ({
+  orderIdIdx: index("paper_trades_order_id_idx").on(t.order_id),
+  signalTypeExecutedAtIdx: index("paper_trades_signal_type_executed_at_idx").on(t.signal_type, t.executed_at),
+}));
 
 export const paperPnlSnapshotsTable = pgTable("paper_pnl_snapshots", {
   id: serial("id").primaryKey(),
@@ -162,7 +208,24 @@ export const paperPnlSnapshotsTable = pgTable("paper_pnl_snapshots", {
   win_rate: real("win_rate").notNull().default(0),
   total_trades: integer("total_trades").notNull().default(0),
   created_at: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  createdAtIdx: index("paper_pnl_snapshots_created_at_idx").on(t.created_at),
+}));
+
+export const balanceReconciliationSnapshotsTable = pgTable("balance_reconciliation_snapshots", {
+  id: serial("id").primaryKey(),
+  source: text("source").notNull().default("live"),
+  live_collateral_balance: real("live_collateral_balance").notNull().default(0),
+  internal_cash_estimate: real("internal_cash_estimate").notNull().default(0),
+  internal_equity_estimate: real("internal_equity_estimate").notNull().default(0),
+  discrepancy_usd: real("discrepancy_usd").notNull().default(0),
+  discrepancy_pct: real("discrepancy_pct").notNull().default(0),
+  status: text("status").notNull().default("ok"),
+  details: jsonb("details"),
+  created_at: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  createdAtIdx: index("balance_reconciliation_created_at_idx").on(t.created_at),
+}));
 
 // ── Schemas & types ─────────────────────────────────────────────────────────
 
@@ -186,4 +249,5 @@ export type LogEntry = typeof logEntriesTable.$inferSelect;
 export type PaperPosition = typeof paperPositionsTable.$inferSelect;
 export type PaperTrade = typeof paperTradesTable.$inferSelect;
 export type PaperPnlSnapshot = typeof paperPnlSnapshotsTable.$inferSelect;
+export type BalanceReconciliationSnapshot = typeof balanceReconciliationSnapshotsTable.$inferSelect;
 export type InsertBotConfig = z.infer<typeof insertBotConfigSchema>;
