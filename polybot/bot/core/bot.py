@@ -25,7 +25,7 @@ from bot.risk.manager import RiskManager
 from bot.risk.mss2 import Mss2RiskManager
 from bot.risk.dynamic_kelly import KellyTracker
 from bot.utils.db import (
-    ensure_schema, apply_retention_policy, update_bot_state, upsert_market, insert_signal, log_entry,
+    ensure_schema, apply_retention_policy, update_bot_state, get_bot_state, upsert_market, insert_signal, log_entry,
     snapshot_pnl, get_bot_config, get_pool, close_pool, record_latency_event,
 )
 from bot.observability.latency import utcnow, duration_ms
@@ -55,7 +55,7 @@ class PolymarketBot:
         logger.info("Starting Polymarket bot...")
         await ensure_schema()
         self.running = True
-        await update_bot_state("running", markets_scanned=0, pid=os.getpid())
+        await update_bot_state("stopped", markets_scanned=0, pid=os.getpid())
         try:
             await apply_retention_policy()
         except Exception as exc:
@@ -66,9 +66,9 @@ class PolymarketBot:
         })
         await send_telegram_alert(
             "info",
-            "Bot started",
-            f"Polymarket bot started in {'paper' if settings.dry_run else 'live'} mode",
-            {"pid": os.getpid(), "paper_mode": settings.dry_run},
+            "Bot armed",
+            f"Polymarket bot is running as a service but is waiting for manual Start in {'paper' if settings.dry_run else 'live'} mode",
+            {"pid": os.getpid(), "paper_mode": settings.dry_run, "state": "stopped"},
         )
         asyncio.create_task(self._load_calibration())
         self._market_stream_task = asyncio.create_task(self.market_stream.run())
@@ -194,16 +194,18 @@ class PolymarketBot:
     async def run_loop(self):
         while self.running and not self._shutdown_event.is_set():
             config = await get_bot_config()
-            if not self.paused:
+            runtime_state = (await get_bot_state()).get("state", "stopped")
+            if runtime_state == "running" and not self.paused:
                 try:
                     await self.scan_cycle(config)
                 except Exception as e:
                     logger.error(f"Scan cycle error: {e}")
                     await log_entry("bot", "error", f"Scan cycle failed: {e}")
             try:
+                wait_seconds = config.get("scan_interval_seconds", 30) if runtime_state == "running" else min(5, max(1, int(config.get("scan_interval_seconds", 30))))
                 await asyncio.wait_for(
                     self._shutdown_event.wait(),
-                    timeout=config.get("scan_interval_seconds", 30)
+                    timeout=wait_seconds
                 )
                 break
             except asyncio.TimeoutError:

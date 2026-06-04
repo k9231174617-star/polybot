@@ -783,6 +783,22 @@ async def update_bot_state(state: str, markets_scanned: Optional[int] = None,
             )
 
 
+async def get_bot_state() -> dict[str, Any]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM bot_state ORDER BY id LIMIT 1")
+        if not row:
+            return {
+                "state": "stopped",
+                "started_at": None,
+                "markets_scanned": 0,
+                "error_message": None,
+                "pid": None,
+                "updated_at": None,
+            }
+        return dict(row)
+
+
 async def upsert_market(market: dict):
     pool = await get_pool()
     async with pool.acquire() as conn:
