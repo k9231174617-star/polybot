@@ -28,106 +28,199 @@ export default function Markets() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         <h1 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{t("markets_title")}</h1>
-        <div className="flex gap-1 ml-auto">
+        <div className="flex flex-wrap gap-1 lg:ml-auto">
           {(["active", "resolved", "all"] as StatusFilter[]).map((s) => (
             <button key={s} onClick={() => setStatusFilter(s)}
-              className={cn("text-xs font-mono px-3 py-1 rounded border transition-colors",
+              className={cn("text-[10px] sm:text-xs font-mono px-3 py-1 rounded border transition-colors",
                 statusFilter === s ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/20"
               )}>
               {s.toUpperCase()}
             </button>
           ))}
         </div>
-        <div className="relative">
+        <div className="relative w-full lg:w-64">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <Input placeholder={t("markets_search")} value={search} onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 h-8 text-xs w-64 bg-card border-border" />
+            className="pl-8 h-9 text-xs w-full bg-card border-border" />
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-md overflow-hidden">
-        <table className="w-full text-xs font-mono">
-          <thead>
-            <tr className="border-b border-border bg-secondary/30">
-              <th className="px-4 py-3 text-left text-muted-foreground font-normal">{t("col_market")}</th>
-              <th className="px-3 py-3 text-right text-muted-foreground font-normal">{t("col_mkt_price")}</th>
-              <th className="px-3 py-3 text-right text-muted-foreground font-normal">{t("col_model_prob")}</th>
-              <th className="px-3 py-3 text-right cursor-pointer select-none" onClick={() => setSortBy("edge")}>
-                <span className={cn(sortBy === "edge" ? "text-primary" : "text-muted-foreground font-normal")}>
-                  {t("col_edge")} {sortBy === "edge" ? "▼" : ""}
-                </span>
-              </th>
-              <th className="px-3 py-3 text-right cursor-pointer select-none" onClick={() => setSortBy("volume_24h")}>
-                <span className={cn(sortBy === "volume_24h" ? "text-primary" : "text-muted-foreground font-normal")}>
-                  {t("col_vol_24h")} {sortBy === "volume_24h" ? "▼" : ""}
-                </span>
-              </th>
-              <th className="px-3 py-3 text-right cursor-pointer select-none" onClick={() => setSortBy("liquidity_usd")}>
-                <span className={cn(sortBy === "liquidity_usd" ? "text-primary" : "text-muted-foreground font-normal")}>
-                  {t("col_liquidity")} {sortBy === "liquidity_usd" ? "▼" : ""}
-                </span>
-              </th>
-              <th className="px-3 py-3 text-right text-muted-foreground font-normal">{t("col_updated")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && Array.from({ length: 8 }).map((_, i) => (
-              <tr key={i} className="border-b border-border/40">
-                <td className="px-4 py-2.5"><Skeleton className="h-3 w-48" /></td>
-                <td className="px-3 py-2.5"><Skeleton className="h-3 w-12 ml-auto" /></td>
-                <td className="px-3 py-2.5"><Skeleton className="h-3 w-12 ml-auto" /></td>
-                <td className="px-3 py-2.5"><Skeleton className="h-3 w-14 ml-auto" /></td>
-                <td className="px-3 py-2.5"><Skeleton className="h-3 w-16 ml-auto" /></td>
-                <td className="px-3 py-2.5"><Skeleton className="h-3 w-16 ml-auto" /></td>
-                <td className="px-3 py-2.5"><Skeleton className="h-3 w-20 ml-auto" /></td>
-              </tr>
+      {isLoading ? (
+        <>
+          <div className="md:hidden space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-card border border-border rounded-md p-3 space-y-3">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-3 w-24" />
+                <div className="grid grid-cols-2 gap-2">
+                  <Skeleton className="h-10 rounded-md" />
+                  <Skeleton className="h-10 rounded-md" />
+                  <Skeleton className="h-10 rounded-md" />
+                  <Skeleton className="h-10 rounded-md" />
+                </div>
+              </div>
             ))}
-            {!isLoading && filtered.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">{t("no_markets")}</td></tr>
+          </div>
+          <div className="hidden md:block bg-card border border-border rounded-md overflow-hidden">
+            <table className="w-full text-xs font-mono">
+              <thead>
+                <tr className="border-b border-border bg-secondary/30">
+                  <th className="px-4 py-3 text-left text-muted-foreground font-normal">{t("col_market")}</th>
+                  <th className="px-3 py-3 text-right text-muted-foreground font-normal">{t("col_mkt_price")}</th>
+                  <th className="px-3 py-3 text-right text-muted-foreground font-normal">{t("col_model_prob")}</th>
+                  <th className="px-3 py-3 text-right cursor-pointer select-none" onClick={() => setSortBy("edge")}>
+                    <span className={cn(sortBy === "edge" ? "text-primary" : "text-muted-foreground font-normal")}>
+                      {t("col_edge")} {sortBy === "edge" ? "▼" : ""}
+                    </span>
+                  </th>
+                  <th className="px-3 py-3 text-right cursor-pointer select-none" onClick={() => setSortBy("volume_24h")}>
+                    <span className={cn(sortBy === "volume_24h" ? "text-primary" : "text-muted-foreground font-normal")}>
+                      {t("col_vol_24h")} {sortBy === "volume_24h" ? "▼" : ""}
+                    </span>
+                  </th>
+                  <th className="px-3 py-3 text-right cursor-pointer select-none" onClick={() => setSortBy("liquidity_usd")}>
+                    <span className={cn(sortBy === "liquidity_usd" ? "text-primary" : "text-muted-foreground font-normal")}>
+                      {t("col_liquidity")} {sortBy === "liquidity_usd" ? "▼" : ""}
+                    </span>
+                  </th>
+                  <th className="px-3 py-3 text-right text-muted-foreground font-normal">{t("col_updated")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <tr key={i} className="border-b border-border/40">
+                    <td className="px-4 py-2.5"><Skeleton className="h-3 w-48" /></td>
+                    <td className="px-3 py-2.5"><Skeleton className="h-3 w-12 ml-auto" /></td>
+                    <td className="px-3 py-2.5"><Skeleton className="h-3 w-12 ml-auto" /></td>
+                    <td className="px-3 py-2.5"><Skeleton className="h-3 w-14 ml-auto" /></td>
+                    <td className="px-3 py-2.5"><Skeleton className="h-3 w-16 ml-auto" /></td>
+                    <td className="px-3 py-2.5"><Skeleton className="h-3 w-16 ml-auto" /></td>
+                    <td className="px-3 py-2.5"><Skeleton className="h-3 w-20 ml-auto" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="md:hidden space-y-2">
+            {filtered.length === 0 && (
+              <div className="bg-card border border-border rounded-md px-4 py-12 text-center text-muted-foreground text-xs">{t("no_markets")}</div>
             )}
             {filtered.map((m) => {
               const edge = m.edge ?? null;
               const hasEdge = edge !== null && Math.abs(edge) > 0.001;
               const positiveEdge = edge !== null && edge > 0;
               return (
-                <tr key={m.id} className="border-b border-border/40 hover:bg-secondary/30 transition-colors">
-                  <td className="px-4 py-2.5 max-w-xs">
-                    <div className="truncate text-foreground">{m.question}</div>
-                    {m.category && <div className="text-[10px] text-muted-foreground mt-0.5">{m.category}</div>}
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{(m.market_price * 100).toFixed(1)}¢</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
-                    {m.model_probability !== undefined && m.model_probability !== null
-                      ? `${(m.model_probability * 100).toFixed(1)}%` : "—"}
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    {hasEdge ? (
-                      <span className={cn(
-                        "px-2 py-0.5 rounded-sm text-[10px] font-bold tabular-nums",
-                        positiveEdge ? "bg-[hsl(var(--success))]/10 text-[hsl(var(--success))] border border-[hsl(var(--success))]/20"
-                          : "bg-destructive/10 text-destructive border border-destructive/20"
-                      )}>
-                        {positiveEdge ? "+" : ""}{(edge! * 100).toFixed(1)}%
-                      </span>
-                    ) : <span className="text-muted-foreground">—</span>}
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
-                    ${m.volume_24h >= 1000 ? `${(m.volume_24h / 1000).toFixed(0)}k` : m.volume_24h.toFixed(0)}
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
-                    ${m.liquidity_usd >= 1000 ? `${(m.liquidity_usd / 1000).toFixed(0)}k` : m.liquidity_usd.toFixed(0)}
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-muted-foreground text-[10px]">
-                    {new Date(m.last_updated).toLocaleTimeString("en-US", { hour12: false })}
-                  </td>
-                </tr>
+                <div key={m.id} className="bg-card border border-border rounded-md p-3 space-y-3">
+                  <div>
+                    <div className="text-sm text-foreground leading-snug">{m.question}</div>
+                    {m.category && <div className="text-[10px] text-muted-foreground mt-1">{m.category}</div>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
+                    <div className="rounded border border-border/70 px-2 py-1.5">
+                      <div className="text-muted-foreground">{t("col_mkt_price")}</div>
+                      <div className="text-foreground tabular-nums">{(m.market_price * 100).toFixed(1)}¢</div>
+                    </div>
+                    <div className="rounded border border-border/70 px-2 py-1.5">
+                      <div className="text-muted-foreground">{t("col_model_prob")}</div>
+                      <div className="text-foreground tabular-nums">{m.model_probability != null ? `${(m.model_probability * 100).toFixed(1)}%` : "—"}</div>
+                    </div>
+                    <div className="rounded border border-border/70 px-2 py-1.5">
+                      <div className="text-muted-foreground">{t("col_edge")}</div>
+                      <div className={cn("tabular-nums font-bold", hasEdge ? (positiveEdge ? "text-[hsl(var(--success))]" : "text-destructive") : "text-muted-foreground")}>
+                        {hasEdge ? `${positiveEdge ? "+" : ""}${(edge! * 100).toFixed(1)}%` : "—"}
+                      </div>
+                    </div>
+                    <div className="rounded border border-border/70 px-2 py-1.5">
+                      <div className="text-muted-foreground">{t("col_updated")}</div>
+                      <div className="text-foreground tabular-nums">{new Date(m.last_updated).toLocaleTimeString("en-US", { hour12: false })}</div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-muted-foreground">
+                    <span>{t("col_vol_24h")}: <span className="text-foreground">${m.volume_24h >= 1000 ? `${(m.volume_24h / 1000).toFixed(0)}k` : m.volume_24h.toFixed(0)}</span></span>
+                    <span className="text-right">{t("col_liquidity")}: <span className="text-foreground">${m.liquidity_usd >= 1000 ? `${(m.liquidity_usd / 1000).toFixed(0)}k` : m.liquidity_usd.toFixed(0)}</span></span>
+                  </div>
+                </div>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </div>
+
+          <div className="hidden md:block bg-card border border-border rounded-md overflow-hidden">
+            <table className="w-full text-xs font-mono">
+              <thead>
+                <tr className="border-b border-border bg-secondary/30">
+                  <th className="px-4 py-3 text-left text-muted-foreground font-normal">{t("col_market")}</th>
+                  <th className="px-3 py-3 text-right text-muted-foreground font-normal">{t("col_mkt_price")}</th>
+                  <th className="px-3 py-3 text-right text-muted-foreground font-normal">{t("col_model_prob")}</th>
+                  <th className="px-3 py-3 text-right cursor-pointer select-none" onClick={() => setSortBy("edge")}>
+                    <span className={cn(sortBy === "edge" ? "text-primary" : "text-muted-foreground font-normal")}>
+                      {t("col_edge")} {sortBy === "edge" ? "▼" : ""}
+                    </span>
+                  </th>
+                  <th className="px-3 py-3 text-right cursor-pointer select-none" onClick={() => setSortBy("volume_24h")}>
+                    <span className={cn(sortBy === "volume_24h" ? "text-primary" : "text-muted-foreground font-normal")}>
+                      {t("col_vol_24h")} {sortBy === "volume_24h" ? "▼" : ""}
+                    </span>
+                  </th>
+                  <th className="px-3 py-3 text-right cursor-pointer select-none" onClick={() => setSortBy("liquidity_usd")}>
+                    <span className={cn(sortBy === "liquidity_usd" ? "text-primary" : "text-muted-foreground font-normal")}>
+                      {t("col_liquidity")} {sortBy === "liquidity_usd" ? "▼" : ""}
+                    </span>
+                  </th>
+                  <th className="px-3 py-3 text-right text-muted-foreground font-normal">{t("col_updated")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!isLoading && filtered.length === 0 && (
+                  <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">{t("no_markets")}</td></tr>
+                )}
+                {filtered.map((m) => {
+                  const edge = m.edge ?? null;
+                  const hasEdge = edge !== null && Math.abs(edge) > 0.001;
+                  const positiveEdge = edge !== null && edge > 0;
+                  return (
+                    <tr key={m.id} className="border-b border-border/40 hover:bg-secondary/30 transition-colors">
+                      <td className="px-4 py-2.5 max-w-xs">
+                        <div className="truncate text-foreground">{m.question}</div>
+                        {m.category && <div className="text-[10px] text-muted-foreground mt-0.5">{m.category}</div>}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{(m.market_price * 100).toFixed(1)}¢</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
+                        {m.model_probability !== undefined && m.model_probability !== null
+                          ? `${(m.model_probability * 100).toFixed(1)}%` : "—"}
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        {hasEdge ? (
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-sm text-[10px] font-bold tabular-nums",
+                            positiveEdge ? "bg-[hsl(var(--success))]/10 text-[hsl(var(--success))] border border-[hsl(var(--success))]/20"
+                              : "bg-destructive/10 text-destructive border border-destructive/20"
+                          )}>
+                            {positiveEdge ? "+" : ""}{(edge! * 100).toFixed(1)}%
+                          </span>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
+                        ${m.volume_24h >= 1000 ? `${(m.volume_24h / 1000).toFixed(0)}k` : m.volume_24h.toFixed(0)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
+                        ${m.liquidity_usd >= 1000 ? `${(m.liquidity_usd / 1000).toFixed(0)}k` : m.liquidity_usd.toFixed(0)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-muted-foreground text-[10px]">
+                        {new Date(m.last_updated).toLocaleTimeString("en-US", { hour12: false })}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

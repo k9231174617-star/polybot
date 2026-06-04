@@ -18,13 +18,15 @@ function StatCard({ label, value, subValue, positive }: {
   label: string; value: string; subValue?: string; positive?: boolean;
 }) {
   return (
-    <div className="bg-card border border-border rounded-md p-4">
-      <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">{label}</div>
-      <div className={cn("text-2xl font-mono font-bold tabular-nums",
+    <div className="bg-card border border-border rounded-md p-3 sm:p-4">
+      <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider mb-1">{label}</div>
+      <div className={cn(
+        "text-xl sm:text-2xl font-mono font-bold tabular-nums",
         positive === true ? "text-[hsl(var(--success))]" :
         positive === false ? "text-destructive" : "text-foreground"
       )}>{value}</div>
-      {subValue && <div className={cn("text-xs font-mono mt-0.5 tabular-nums",
+      {subValue && <div className={cn(
+        "text-[10px] sm:text-xs font-mono mt-0.5 tabular-nums",
         positive === true ? "text-[hsl(var(--success))]" :
         positive === false ? "text-destructive" : "text-muted-foreground"
       )}>{subValue}</div>}
@@ -72,10 +74,13 @@ export default function Dashboard() {
 
   const pnlPositive = (summary?.total_pnl ?? 0) >= 0;
   const dailyPositive = (summary?.daily_pnl ?? 0) >= 0;
+  const positionsList = positions ?? [];
+  const signalsList = signals ?? [];
+  const logsList = logs ?? [];
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+    <div className="space-y-4 md:space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
         {sumLoading ? Array.from({ length: 6 }).map((_, i) => (
           <Skeleton key={i} className="h-20 rounded-md" />
         )) : <>
@@ -93,13 +98,13 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-2 bg-card border border-border rounded-md p-4">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("equity_curve")}</span>
-            <div className="flex gap-1">
+            <div className="flex flex-wrap gap-1">
               {(["1d", "7d", "30d", "all"] as Period[]).map((p) => (
                 <button key={p} onClick={() => setPeriod(p)}
-                  className={cn("text-xs font-mono px-2 py-0.5 rounded transition-colors",
-                    period === p ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                  className={cn("text-[10px] sm:text-xs font-mono px-2 py-1 rounded transition-colors border",
+                    period === p ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground border-border hover:text-foreground"
                   )}>
                   {p.toUpperCase()}
                 </button>
@@ -130,29 +135,28 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="bg-card border border-border rounded-md p-4 flex flex-col">
+        <div className="bg-card border border-border rounded-md p-4 flex flex-col min-h-[24rem]">
           <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">{t("live_signals")}</div>
           {sigLoading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 mb-2" />) : (
             <div className="space-y-2 overflow-y-auto flex-1">
-              {(signals ?? []).length === 0 && (
+              {signalsList.length === 0 && (
                 <div className="text-muted-foreground text-xs text-center py-8">{t("no_pending_signals")}</div>
               )}
-              {(signals ?? []).slice(0, 8).map((s) => (
+              {signalsList.slice(0, 8).map((s) => (
                 <div key={s.id} className="border border-border rounded-sm p-2.5 hover:border-primary/40 transition-colors">
                   <div className="flex items-center gap-2 mb-1">
                     <SignalTypeBadge type={s.signal_type} />
-                    <span className={cn("text-xs font-mono font-bold", s.direction === "YES" ? "text-[hsl(var(--success))]" : "text-destructive")}>
-                      {s.direction}
-                    </span>
+                    <span className={cn("text-xs font-mono font-bold", s.direction === "YES" ? "text-[hsl(var(--success))]" : "text-destructive")}>{s.direction}</span>
                     <span className="text-xs font-mono ml-auto text-[hsl(var(--success))] font-bold">
                       +{(s.edge * 100).toFixed(1)}%
                     </span>
                   </div>
                   <div className="text-[11px] text-muted-foreground leading-tight line-clamp-1">{s.market_question}</div>
-                  <div className="flex gap-3 mt-1">
-                    <span className="text-[10px] font-mono text-muted-foreground">MKT: {(s.market_price * 100).toFixed(1)}%</span>
-                    <span className="text-[10px] font-mono text-muted-foreground">MDL: {(s.model_probability * 100).toFixed(1)}%</span>
-                    <span className="text-[10px] font-mono text-muted-foreground ml-auto">K: ${s.kelly_size_usd.toFixed(0)}</span>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-1 text-[10px] font-mono text-muted-foreground">
+                    <span>MKT: {(s.market_price * 100).toFixed(1)}%</span>
+                    <span className="text-right">MDL: {(s.model_probability * 100).toFixed(1)}%</span>
+                    <span>K: ${s.kelly_size_usd.toFixed(0)}</span>
+                    <span className="text-right">{(s.confidence * 100).toFixed(0)}%</span>
                   </div>
                 </div>
               ))}
@@ -165,41 +169,64 @@ export default function Dashboard() {
         <div className="xl:col-span-2 bg-card border border-border rounded-md">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("open_positions")}</span>
-            <span className="text-xs font-mono text-muted-foreground">{(positions ?? []).length} {t("active")}</span>
+            <span className="text-xs font-mono text-muted-foreground">{positionsList.length} {t("active")}</span>
           </div>
           {posLoading ? <Skeleton className="m-4 h-32" /> : (
-            <table className="w-full text-xs font-mono">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="px-4 py-2 text-left text-muted-foreground font-normal">{t("col_market")}</th>
-                  <th className="px-3 py-2 text-right text-muted-foreground font-normal">{t("col_side")}</th>
-                  <th className="px-3 py-2 text-right text-muted-foreground font-normal">{t("col_size")}</th>
-                  <th className="px-3 py-2 text-right text-muted-foreground font-normal">{t("col_entry")}</th>
-                  <th className="px-3 py-2 text-right text-muted-foreground font-normal">{t("col_now")}</th>
-                  <th className="px-3 py-2 text-right text-muted-foreground font-normal">{t("col_pnl")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(positions ?? []).length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">{t("no_open_positions")}</td></tr>
+            <>
+              <div className="md:hidden divide-y divide-border/50">
+                {positionsList.length === 0 && (
+                  <div className="px-4 py-8 text-center text-muted-foreground text-xs">{t("no_open_positions")}</div>
                 )}
-                {(positions ?? []).map((p) => (
-                  <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/40 transition-colors">
-                    <td className="px-4 py-2 text-foreground max-w-[200px] truncate">{p.market_question}</td>
-                    <td className={cn("px-3 py-2 text-right font-bold", p.side === "YES" ? "text-[hsl(var(--success))]" : "text-destructive")}>
-                      {p.side}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">${p.size_usd.toFixed(0)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{(p.entry_price * 100).toFixed(1)}¢</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{(p.current_price * 100).toFixed(1)}¢</td>
-                    <td className={cn("px-3 py-2 text-right tabular-nums font-bold",
-                      p.unrealized_pnl >= 0 ? "text-[hsl(var(--success))]" : "text-destructive")}>
-                      {p.unrealized_pnl >= 0 ? "+" : ""}${p.unrealized_pnl.toFixed(2)}
-                    </td>
-                  </tr>
+                {positionsList.map((p) => (
+                  <div key={p.id} className="px-4 py-3 space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm text-foreground">{p.market_question}</div>
+                        <div className="text-[10px] text-muted-foreground">{t("col_entry")}: {(p.entry_price * 100).toFixed(1)}¢ · {t("col_now")}: {(p.current_price * 100).toFixed(1)}¢</div>
+                      </div>
+                      <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0",
+                        p.side === "YES" ? "bg-[hsl(var(--success))]/10 text-[hsl(var(--success))] border-[hsl(var(--success))]/20" : "bg-destructive/10 text-destructive border-destructive/20"
+                      )}>{p.side}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-muted-foreground">
+                      <span>{t("col_size")}: <span className="text-foreground tabular-nums">${p.size_usd.toFixed(0)}</span></span>
+                      <span className="text-right">{t("col_pnl")}: <span className={cn("font-bold tabular-nums", p.unrealized_pnl >= 0 ? "text-[hsl(var(--success))]" : "text-destructive")}>{p.unrealized_pnl >= 0 ? "+" : ""}${p.unrealized_pnl.toFixed(2)}</span></span>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+              <div className="hidden md:block">
+                <table className="w-full text-xs font-mono">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="px-4 py-2 text-left text-muted-foreground font-normal">{t("col_market")}</th>
+                      <th className="px-3 py-2 text-right text-muted-foreground font-normal">{t("col_side")}</th>
+                      <th className="px-3 py-2 text-right text-muted-foreground font-normal">{t("col_size")}</th>
+                      <th className="px-3 py-2 text-right text-muted-foreground font-normal">{t("col_entry")}</th>
+                      <th className="px-3 py-2 text-right text-muted-foreground font-normal">{t("col_now")}</th>
+                      <th className="px-3 py-2 text-right text-muted-foreground font-normal">{t("col_pnl")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {positionsList.length === 0 && (
+                      <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">{t("no_open_positions")}</td></tr>
+                    )}
+                    {positionsList.map((p) => (
+                      <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/40 transition-colors">
+                        <td className="px-4 py-2 text-foreground max-w-[200px] truncate">{p.market_question}</td>
+                        <td className={cn("px-3 py-2 text-right font-bold", p.side === "YES" ? "text-[hsl(var(--success))]" : "text-destructive")}>{p.side}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">${p.size_usd.toFixed(0)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{(p.entry_price * 100).toFixed(1)}¢</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{(p.current_price * 100).toFixed(1)}¢</td>
+                        <td className={cn("px-3 py-2 text-right tabular-nums font-bold", p.unrealized_pnl >= 0 ? "text-[hsl(var(--success))]" : "text-destructive")}>
+                          {p.unrealized_pnl >= 0 ? "+" : ""}${p.unrealized_pnl.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
 
@@ -214,12 +241,12 @@ export default function Dashboard() {
                 { label: t("risk_var"), value: `$${(risk.var_95 ?? 0).toFixed(2)}` },
                 { label: t("risk_correlation"), value: `${((risk.correlation_risk_score ?? 0) * 100).toFixed(0)}%`, warn: (risk.correlation_risk_score ?? 0) > 0.7 },
               ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between">
-                  <span className="text-[11px] text-muted-foreground">{item.label}</span>
-                  <span className={cn("text-xs font-mono font-bold tabular-nums",
-                    item.warn ? "text-[hsl(var(--warning))]" : "text-foreground")}>
-                    {item.value}
-                  </span>
+                <div key={item.label} className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="block text-[11px] text-muted-foreground">{item.label}</span>
+                    {item.sub && <span className="block text-[10px] text-muted-foreground/80 font-mono mt-0.5">{item.sub}</span>}
+                  </div>
+                  <span className={cn("text-xs font-mono font-bold tabular-nums", item.warn ? "text-[hsl(var(--warning))]" : "text-foreground")}>{item.value}</span>
                 </div>
               ))}
               <div>
@@ -239,20 +266,18 @@ export default function Dashboard() {
         <div className="flex items-center px-4 py-2 border-b border-border">
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("system_log")}</span>
         </div>
-        <div className="font-mono text-[11px] max-h-40 overflow-y-auto p-3 space-y-0.5">
-          {(logs ?? []).length === 0 && <span className="text-muted-foreground">{t("no_log_entries")}</span>}
-          {(logs ?? []).map((log) => (
-            <div key={log.id} className="flex gap-3 hover:bg-secondary/30 px-1 rounded">
+        <div className="font-mono text-[11px] max-h-52 overflow-y-auto p-3 space-y-0.5">
+          {logsList.length === 0 && <span className="text-muted-foreground">{t("no_log_entries")}</span>}
+          {logsList.map((log) => (
+            <div key={log.id} className="flex flex-wrap gap-x-3 gap-y-1 hover:bg-secondary/30 px-1 py-1 rounded">
               <span className="text-muted-foreground shrink-0">
                 {new Date(log.created_at).toLocaleTimeString("en-US", { hour12: false })}
               </span>
               <span className={cn("shrink-0 uppercase w-8",
                 log.level === "error" ? "text-destructive" :
-                log.level === "warning" ? "text-[hsl(var(--warning))]" : "text-primary")}>
-                {log.level.slice(0, 4)}
-              </span>
+                log.level === "warning" ? "text-[hsl(var(--warning))]" : "text-primary")}>{log.level.slice(0, 4)}</span>
               <span className="text-muted-foreground shrink-0 w-20 truncate">[{log.module}]</span>
-              <span className="text-foreground">{log.message}</span>
+              <span className="text-foreground min-w-0 flex-1">{log.message}</span>
             </div>
           ))}
         </div>
