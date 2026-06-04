@@ -1,4 +1,4 @@
-"""Resolution Lag Arb detector — confirmation on unresolved markets."""
+"""RODA detector — resolution-lag fallback plus cross-platform divergence arb."""
 from __future__ import annotations
 
 import re
@@ -8,6 +8,7 @@ from typing import Optional
 from loguru import logger
 
 from bot.analytics.engine import AnalyticsEngine
+from bot.data.divergence import aggregate_divergence_quotes, collect_divergence_quotes
 from bot.data.news import fetch_news_articles
 
 _STOPWORDS = {
@@ -74,10 +75,11 @@ def _article_support(question_tokens: set[str], article: dict, question_sign: in
         return 0.0
 
     article_time = article.get("published_at")
+    event_end = end_date if end_date.tzinfo is not None else end_date.replace(tzinfo=timezone.utc)
     if article_time is not None:
         if article_time.tzinfo is None:
             article_time = article_time.replace(tzinfo=timezone.utc)
-        if article_time.astimezone(timezone.utc) < end_date.astimezone(timezone.utc):
+        if article_time.astimezone(timezone.utc) < event_end.astimezone(timezone.utc):
             return 0.0
 
     pos = len(text_tokens & _CONFIRM_POS)
@@ -94,11 +96,78 @@ def _article_support(question_tokens: set[str], article: dict, question_sign: in
     return float(question_sign * raw) * (overlap / max(len(question_tokens), 1)) * recency_boost
 
 
+def _divergence_signal(
+    market: dict,
+    *,
+    divergence_sources_by_market: Optional[dict[str, list[dict]]] = None,
+    config: Optional[dict] = None,
+    now: datetime,
+    kelly_fraction: float,
+    total_capital: float,
+) -> Optional[dict]:
+    cfg = config or {}
+    mode = str(cfg.get("roda_mode", "auto") or "auto").lower()
+    if mode not in {"auto", "divergence", "hybrid"}:
+        return None
+
+    quotes = collect_divergence_quotes(market, market_sources=divergence_sources_by_market)
+    consensus = aggregate_divergence_quotes(quotes)
+    if consensus is None:
+        return None
+
+    min_edge = float(cfg.get("roda_divergence_min_edge", 0.06))
+    min_confidence = float(cfg.get("roda_divergence_min_confidence", 0.60))
+    min_sources = int(cfg.get("roda_divergence_min_sources", 2))
+    max_position_pct = float(cfg.get("roda_max_position_pct", 0.10))
+    hold_window_hours = float(cfg.get("roda_hold_window_hours", 12.0))
+
+    yes_price = float(market.get("market_price", 0.5))
+    edge = consensus.probability - yes_price
+    if abs(edge) < min_edge:
+        return None
+    if consensus.confidence < min_confidence or consensus.source_count < min_sources:
+        return None
+
+    direction = "YES" if edge > 0 else "NO"
+    model_prob = consensus.probability
+    end_date = market.get("end_date")
+    if isinstance(end_date, datetime):
+        time_factor = _time_decay(_market_age_hours(end_date, now), hold_window_hours)
+    else:
+        time_factor = 1.0
+    size = AnalyticsEngine().calculate_kelly_size(edge, model_prob, yes_price, total_capital, kelly_fraction)
+    size = min(size * max(time_factor, 0.25), total_capital * max_position_pct)
+    if size < 1.0:
+        return None
+
+    return {
+        "market_id": market["id"],
+        "market_question": market.get("question", ""),
+        "market_category": market.get("category", ""),
+        "signal_type": "roda_divergence",
+        "direction": direction,
+        "market_price": yes_price,
+        "model_probability": model_prob,
+        "edge": edge,
+        "kelly_size_usd": size,
+        "confidence": min(0.99, consensus.confidence),
+        "roda_mode": "divergence",
+        "roda_external_probability": consensus.probability,
+        "roda_divergence": edge,
+        "roda_source_count": consensus.source_count,
+        "roda_sources": consensus.sources,
+        "roda_source_spread": consensus.spread,
+        "roda_time_factor": time_factor,
+        "roda_hold_window_hours": hold_window_hours,
+    }
+
+
 async def detect_roda_signals(
     markets: list[dict],
     *,
     news_api_key: str = "",
     news_articles_by_market: Optional[dict[str, list[dict]]] = None,
+    divergence_sources_by_market: Optional[dict[str, list[dict]]] = None,
     config: Optional[dict] = None,
     now: Optional[datetime] = None,
     kelly_fraction: float = 0.25,
@@ -116,6 +185,7 @@ async def detect_roda_signals(
     min_sources = int(cfg.get("roda_min_sources", 3))
     max_position_pct = cfg.get("roda_max_position_pct", 0.10)
     hold_window_hours = float(cfg.get("roda_hold_window_hours", 12.0))
+    mode = str(cfg.get("roda_mode", "auto") or "auto").lower()
     engine = AnalyticsEngine()
     now = now or datetime.now(timezone.utc)
 
@@ -138,6 +208,32 @@ async def detect_roda_signals(
 
     signals: list[dict] = []
     for market in candidates:
+        if mode == "divergence":
+            divergence_signal = _divergence_signal(
+                market,
+                divergence_sources_by_market=divergence_sources_by_market,
+                config=cfg,
+                now=now,
+                kelly_fraction=kelly_fraction,
+                total_capital=total_capital,
+            )
+            if divergence_signal is not None:
+                signals.append(divergence_signal)
+            continue
+
+        if mode in {"auto", "hybrid"}:
+            divergence_signal = _divergence_signal(
+                market,
+                divergence_sources_by_market=divergence_sources_by_market,
+                config=cfg,
+                now=now,
+                kelly_fraction=kelly_fraction,
+                total_capital=total_capital,
+            )
+            if divergence_signal is not None:
+                signals.append(divergence_signal)
+                continue
+
         question = market.get("question", "")
         question_tokens = _tokens(question)
         if not question_tokens:
@@ -227,5 +323,5 @@ async def detect_roda_signals(
         signals.append(signal)
 
     signals.sort(key=lambda s: (s["confidence"], abs(s["edge"])), reverse=True)
-    logger.info(f"Resolution Lag Arb detected {len(signals)} opportunities")
+    logger.info(f"RODA detected {len(signals)} opportunities")
     return signals

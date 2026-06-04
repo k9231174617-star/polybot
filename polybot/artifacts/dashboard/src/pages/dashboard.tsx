@@ -42,6 +42,7 @@ function SignalTypeBadge({ type }: { type: string }) {
     sentiment_lag: "SENT",
     implied_prob: "IMP",
     roda_oracle_lag: "Resolution Lag Arb",
+    roda_divergence: "RODA DIV",
     lch_cascade: "LCH",
     hybrid_roda_lch_cross: "HYB",
     mss2_spread_capture: "MSS2",
@@ -86,6 +87,13 @@ export default function Dashboard() {
   const reconciliationDeltaPct = summary?.balance_reconciliation_discrepancy_pct ?? null;
   const reconciliationUpdatedAt = summary?.balance_reconciliation_updated_at ?? null;
   const reconciliationIsOk = reconciliationStatus === "ok" || reconciliationStatus === "synced";
+  const latencyDecision = summary?.latency_signal_to_decision_ms ?? null;
+  const latencyTradeRecorded = summary?.latency_signal_to_trade_recorded_ms ?? null;
+  const latencyConfirmation = summary?.latency_signal_to_confirmation_ms ?? null;
+  const latencyEvents = summary?.latency_events_count ?? 0;
+  const hasLatencyDecision = Boolean(latencyDecision && latencyDecision.count > 0);
+  const hasLatencyTradeRecorded = Boolean(latencyTradeRecorded && latencyTradeRecorded.count > 0);
+  const hasLatencyConfirmation = Boolean(latencyConfirmation && latencyConfirmation.count > 0);
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -102,6 +110,38 @@ export default function Dashboard() {
           <StatCard label={t("stat_signals")} value={String(summary?.pending_signals_count ?? 0)} />
           <StatCard label={t("stat_win_rate")} value={`${((summary?.win_rate ?? 0) * 100).toFixed(1)}%`}
             subValue={`${summary?.trades_today ?? 0} ${t("trades_today")}`} />
+        </>}
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("latency_title")}</div>
+        <div className="text-[10px] text-muted-foreground">{latencyEvents} {t("latency_events")}</div>
+      </div>
+
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        {sumLoading ? Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-20 rounded-md" />
+        )) : <>
+          <StatCard
+            label={t("latency_signal_to_decision")}
+            value={hasLatencyDecision ? `${latencyDecision.p50_ms.toFixed(0)}ms` : "—"}
+            subValue={hasLatencyDecision ? `p95 ${latencyDecision.p95_ms.toFixed(0)}ms · n=${latencyDecision.count}` : undefined}
+          />
+          <StatCard
+            label={t("latency_signal_to_trade")}
+            value={hasLatencyTradeRecorded ? `${latencyTradeRecorded.p50_ms.toFixed(0)}ms` : "—"}
+            subValue={hasLatencyTradeRecorded ? `p95 ${latencyTradeRecorded.p95_ms.toFixed(0)}ms · n=${latencyTradeRecorded.count}` : undefined}
+          />
+          <StatCard
+            label={t("latency_signal_to_confirmation")}
+            value={hasLatencyConfirmation ? `${latencyConfirmation.p50_ms.toFixed(0)}ms` : "—"}
+            subValue={hasLatencyConfirmation ? `p95 ${latencyConfirmation.p95_ms.toFixed(0)}ms · n=${latencyConfirmation.count}` : undefined}
+          />
+          <StatCard
+            label={t("latency_events")}
+            value={String(latencyEvents)}
+            subValue={latencyDecision || latencyExecution || latencyConfirmation ? t("latency_title") : undefined}
+          />
         </>}
       </div>
 

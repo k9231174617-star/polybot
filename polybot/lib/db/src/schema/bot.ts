@@ -43,9 +43,23 @@ export const botConfigTable = pgTable("bot_config", {
   reconciliation_warning_usd: real("reconciliation_warning_usd").notNull().default(5.0),
   reconciliation_critical_usd: real("reconciliation_critical_usd").notNull().default(25.0),
   roda_enabled: boolean("roda_enabled").notNull().default(true),
+  roda_mode: text("roda_mode").notNull().default("auto"),
   lch_enabled: boolean("lch_enabled").notNull().default(true),
   hybrid_enabled: boolean("hybrid_enabled").notNull().default(true),
   mss2_enabled: boolean("mss2_enabled").notNull().default(true),
+  roda_min_confidence: real("roda_min_confidence").notNull().default(0.95),
+  roda_min_sources: integer("roda_min_sources").notNull().default(3),
+  roda_divergence_min_edge: real("roda_divergence_min_edge").notNull().default(0.06),
+  roda_divergence_min_confidence: real("roda_divergence_min_confidence").notNull().default(0.60),
+  roda_divergence_min_sources: integer("roda_divergence_min_sources").notNull().default(2),
+  lch_min_z_score: real("lch_min_z_score").notNull().default(2.5),
+  lch_min_recovery_probability: real("lch_min_recovery_probability").notNull().default(0.70),
+  lch_max_wash_trading_score: real("lch_max_wash_trading_score").notNull().default(0.72),
+  mss2_min_spread_bps: real("mss2_min_spread_bps").notNull().default(35.0),
+  mss2_min_expected_profit_bps: real("mss2_min_expected_profit_bps").notNull().default(35.0),
+  mss2_max_adverse_selection_score: real("mss2_max_adverse_selection_score").notNull().default(0.65),
+  mss2_min_fill_probability_proxy: real("mss2_min_fill_probability_proxy").notNull().default(0.30),
+  mss2_max_queue_pressure: real("mss2_max_queue_pressure").notNull().default(0.75),
   updated_at: timestamp("updated_at").defaultNow(),
 }, (t) => ({
   updatedAtIdx: index("bot_config_updated_at_idx").on(t.updated_at),
@@ -107,6 +121,7 @@ export const signalsTable = pgTable("signals", {
   status: text("status").notNull().default("pending"),
   detected_at: timestamp("detected_at").defaultNow(),
   acted_at: timestamp("acted_at"),
+  details: jsonb("details"),
 }, (t) => ({
   statusDetectedAtIdx: index("signals_status_detected_at_idx").on(t.status, t.detected_at),
   marketIdIdx: index("signals_market_id_idx").on(t.market_id),
@@ -116,6 +131,7 @@ export const tradesTable = pgTable("trades", {
   id: serial("id").primaryKey(),
   market_id: text("market_id").notNull(),
   market_question: text("market_question").notNull(),
+  signal_id: integer("signal_id"),
   side: text("side").notNull(),
   action: text("action").notNull(),
   size_usd: real("size_usd").notNull(),
@@ -134,6 +150,7 @@ export const tradesTable = pgTable("trades", {
   orderIdIdx: index("trades_order_id_idx").on(t.order_id),
   statusExecutedAtIdx: index("trades_status_executed_at_idx").on(t.order_status, t.executed_at),
   marketIdIdx: index("trades_market_id_idx").on(t.market_id),
+  signalIdIdx: index("trades_signal_id_idx").on(t.signal_id),
 }));
 
 export const pnlSnapshotsTable = pgTable("pnl_snapshots", {
@@ -154,6 +171,23 @@ export const logEntriesTable = pgTable("log_entries", {
   created_at: timestamp("created_at").defaultNow(),
 }, (t) => ({
   createdAtIdx: index("log_entries_created_at_idx").on(t.created_at),
+}));
+
+export const latencyEventsTable = pgTable("latency_events", {
+  id: serial("id").primaryKey(),
+  signal_id: integer("signal_id"),
+  market_id: text("market_id").notNull(),
+  signal_type: text("signal_type").notNull(),
+  stage: text("stage").notNull(),
+  duration_ms: real("duration_ms").notNull(),
+  started_at: timestamp("started_at").notNull(),
+  finished_at: timestamp("finished_at").notNull(),
+  details: jsonb("details"),
+  created_at: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  createdAtIdx: index("latency_events_created_at_idx").on(t.created_at),
+  stageCreatedAtIdx: index("latency_events_stage_created_at_idx").on(t.stage, t.created_at),
+  signalTypeCreatedAtIdx: index("latency_events_signal_type_created_at_idx").on(t.signal_type, t.created_at),
 }));
 
 // ── Paper Trading ───────────────────────────────────────────────────────────
@@ -183,6 +217,7 @@ export const paperTradesTable = pgTable("paper_trades", {
   id: serial("id").primaryKey(),
   market_id: text("market_id").notNull(),
   market_question: text("market_question").notNull(),
+  signal_id: integer("signal_id"),
   side: text("side").notNull(),
   action: text("action").notNull(),
   size_usd: real("size_usd").notNull(),
@@ -199,6 +234,7 @@ export const paperTradesTable = pgTable("paper_trades", {
 }, (t) => ({
   orderIdIdx: index("paper_trades_order_id_idx").on(t.order_id),
   signalTypeExecutedAtIdx: index("paper_trades_signal_type_executed_at_idx").on(t.signal_type, t.executed_at),
+  signalIdIdx: index("paper_trades_signal_id_idx").on(t.signal_id),
 }));
 
 export const paperPnlSnapshotsTable = pgTable("paper_pnl_snapshots", {

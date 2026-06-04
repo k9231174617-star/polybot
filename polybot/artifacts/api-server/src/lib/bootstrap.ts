@@ -27,16 +27,44 @@ const SCHEMA_STATEMENTS = [
       paper_trading BOOLEAN NOT NULL DEFAULT TRUE,
       paper_capital_usd REAL NOT NULL DEFAULT 1000,
       roda_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      roda_mode TEXT NOT NULL DEFAULT 'auto',
       lch_enabled BOOLEAN NOT NULL DEFAULT TRUE,
       hybrid_enabled BOOLEAN NOT NULL DEFAULT TRUE,
       mss2_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      roda_min_confidence REAL NOT NULL DEFAULT 0.95,
+      roda_min_sources INTEGER NOT NULL DEFAULT 3,
+      roda_divergence_min_edge REAL NOT NULL DEFAULT 0.06,
+      roda_divergence_min_confidence REAL NOT NULL DEFAULT 0.60,
+      roda_divergence_min_sources INTEGER NOT NULL DEFAULT 2,
+      lch_min_z_score REAL NOT NULL DEFAULT 2.5,
+      lch_min_recovery_probability REAL NOT NULL DEFAULT 0.70,
+      lch_max_wash_trading_score REAL NOT NULL DEFAULT 0.72,
+      mss2_min_spread_bps REAL NOT NULL DEFAULT 35.0,
+      mss2_min_expected_profit_bps REAL NOT NULL DEFAULT 35.0,
+      mss2_max_adverse_selection_score REAL NOT NULL DEFAULT 0.65,
+      mss2_min_fill_probability_proxy REAL NOT NULL DEFAULT 0.30,
+      mss2_max_queue_pressure REAL NOT NULL DEFAULT 0.75,
       updated_at TIMESTAMP DEFAULT NOW()
     )
   `,
   sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS roda_enabled BOOLEAN NOT NULL DEFAULT TRUE`,
+  sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS roda_mode TEXT NOT NULL DEFAULT 'auto'`,
   sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS lch_enabled BOOLEAN NOT NULL DEFAULT TRUE`,
   sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS hybrid_enabled BOOLEAN NOT NULL DEFAULT TRUE`,
   sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS mss2_enabled BOOLEAN NOT NULL DEFAULT TRUE`,
+  sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS roda_min_confidence REAL NOT NULL DEFAULT 0.95`,
+  sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS roda_min_sources INTEGER NOT NULL DEFAULT 3`,
+  sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS roda_divergence_min_edge REAL NOT NULL DEFAULT 0.06`,
+  sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS roda_divergence_min_confidence REAL NOT NULL DEFAULT 0.60`,
+  sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS roda_divergence_min_sources INTEGER NOT NULL DEFAULT 2`,
+  sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS lch_min_z_score REAL NOT NULL DEFAULT 2.5`,
+  sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS lch_min_recovery_probability REAL NOT NULL DEFAULT 0.70`,
+  sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS lch_max_wash_trading_score REAL NOT NULL DEFAULT 0.72`,
+  sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS mss2_min_spread_bps REAL NOT NULL DEFAULT 35.0`,
+  sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS mss2_min_expected_profit_bps REAL NOT NULL DEFAULT 35.0`,
+  sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS mss2_max_adverse_selection_score REAL NOT NULL DEFAULT 0.65`,
+  sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS mss2_min_fill_probability_proxy REAL NOT NULL DEFAULT 0.30`,
+  sql`ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS mss2_max_queue_pressure REAL NOT NULL DEFAULT 0.75`,
   sql`
     CREATE TABLE IF NOT EXISTS markets (
       id TEXT PRIMARY KEY,
@@ -85,7 +113,8 @@ const SCHEMA_STATEMENTS = [
       confidence REAL NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'pending',
       detected_at TIMESTAMP DEFAULT NOW(),
-      acted_at TIMESTAMP
+      acted_at TIMESTAMP,
+      details JSONB
     )
   `,
   sql`
@@ -93,6 +122,7 @@ const SCHEMA_STATEMENTS = [
       id SERIAL PRIMARY KEY,
       market_id TEXT NOT NULL,
       market_question TEXT NOT NULL,
+      signal_id INTEGER,
       side TEXT NOT NULL,
       action TEXT NOT NULL,
       size_usd REAL NOT NULL,
@@ -124,6 +154,20 @@ const SCHEMA_STATEMENTS = [
     )
   `,
   sql`
+    CREATE TABLE IF NOT EXISTS latency_events (
+      id SERIAL PRIMARY KEY,
+      signal_id INTEGER,
+      market_id TEXT NOT NULL,
+      signal_type TEXT NOT NULL,
+      stage TEXT NOT NULL,
+      duration_ms REAL NOT NULL,
+      started_at TIMESTAMP NOT NULL,
+      finished_at TIMESTAMP NOT NULL,
+      details JSONB,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `,
+  sql`
     CREATE TABLE IF NOT EXISTS paper_positions (
       id SERIAL PRIMARY KEY,
       market_id TEXT NOT NULL,
@@ -147,6 +191,7 @@ const SCHEMA_STATEMENTS = [
       id SERIAL PRIMARY KEY,
       market_id TEXT NOT NULL,
       market_question TEXT NOT NULL,
+      signal_id INTEGER,
       side TEXT NOT NULL,
       action TEXT NOT NULL,
       size_usd REAL NOT NULL,
@@ -168,6 +213,14 @@ const SCHEMA_STATEMENTS = [
       created_at TIMESTAMP DEFAULT NOW()
     )
   `,
+  sql`ALTER TABLE trades ADD COLUMN IF NOT EXISTS signal_id INTEGER`,
+  sql`ALTER TABLE paper_trades ADD COLUMN IF NOT EXISTS signal_id INTEGER`,
+  sql`ALTER TABLE signals ADD COLUMN IF NOT EXISTS details JSONB`,
+  sql`CREATE INDEX IF NOT EXISTS trades_signal_id_idx ON trades (signal_id)`,
+  sql`CREATE INDEX IF NOT EXISTS latency_events_created_at_idx ON latency_events (created_at DESC)`,
+  sql`CREATE INDEX IF NOT EXISTS latency_events_stage_created_at_idx ON latency_events (stage, created_at DESC)`,
+  sql`CREATE INDEX IF NOT EXISTS latency_events_signal_type_created_at_idx ON latency_events (signal_type, created_at DESC)`,
+  sql`CREATE INDEX IF NOT EXISTS paper_trades_signal_id_idx ON paper_trades (signal_id)`,
 ] as const;
 
 export async function ensureDatabaseSchema(): Promise<void> {

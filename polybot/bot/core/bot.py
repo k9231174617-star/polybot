@@ -1,11 +1,13 @@
 """Main bot loop — orchestrates data, analysis, risk checks, execution."""
 import asyncio
+import json
 import os
 from loguru import logger
 
 from bot.config import settings
 from bot.data.polymarket import PolymarketClient
 from bot.data.polymarket_ws import PolymarketMarketStream
+from bot.data.divergence import fetch_divergence_feeds
 from bot.data.news import batch_sentiment
 from bot.analytics.engine import AnalyticsEngine
 from bot.analytics.calibration import load_calibration
@@ -14,6 +16,7 @@ from bot.analytics.mss2 import Mss2Scanner
 from bot.analytics.hybrid import detect_hybrid_signals
 from bot.analytics.roda import detect_roda_signals
 from bot.analytics.lch import LchDetector
+from bot.analytics.recalibration import run_auto_recalibration
 from bot.execution.orders import OrderExecutor
 from bot.execution.paper import PaperExecutor
 from bot.notifications.mss2 import notify_mss2_event
@@ -23,8 +26,9 @@ from bot.risk.mss2 import Mss2RiskManager
 from bot.risk.dynamic_kelly import KellyTracker
 from bot.utils.db import (
     ensure_schema, apply_retention_policy, update_bot_state, upsert_market, insert_signal, log_entry,
-    snapshot_pnl, get_bot_config, get_pool, close_pool,
+    snapshot_pnl, get_bot_config, get_pool, close_pool, record_latency_event,
 )
+from bot.observability.latency import utcnow, duration_ms
 
 
 class PolymarketBot:
@@ -42,6 +46,10 @@ class PolymarketBot:
         self.mss2_risk = Mss2RiskManager()
         self.market_stream = PolymarketMarketStream()
         self._market_stream_task: asyncio.Task | None = None
+        self._divergence_refresh_task: asyncio.Task | None = None
+        self._recalibration_task: asyncio.Task | None = None
+        self._roda_latest_markets: list[dict] = []
+        self._roda_divergence_sources: dict[str, list[dict]] = {}
 
     async def start(self):
         logger.info("Starting Polymarket bot...")
@@ -64,6 +72,8 @@ class PolymarketBot:
         )
         asyncio.create_task(self._load_calibration())
         self._market_stream_task = asyncio.create_task(self.market_stream.run())
+        self._divergence_refresh_task = asyncio.create_task(self._refresh_roda_divergence_sources())
+        self._recalibration_task = asyncio.create_task(self._auto_recalibration_loop())
         try:
             await self.run_loop()
         except asyncio.CancelledError:
@@ -80,6 +90,18 @@ class PolymarketBot:
                     await self._market_stream_task
                 except BaseException as exc:
                     logger.debug(f"Market stream task stopped with: {exc}")
+            if self._divergence_refresh_task:
+                self._divergence_refresh_task.cancel()
+                try:
+                    await self._divergence_refresh_task
+                except BaseException as exc:
+                    logger.debug(f"Divergence refresh task stopped with: {exc}")
+            if self._recalibration_task:
+                self._recalibration_task.cancel()
+                try:
+                    await self._recalibration_task
+                except BaseException as exc:
+                    logger.debug(f"Recalibration task stopped with: {exc}")
             await update_bot_state("stopped")
             await log_entry("bot", "info", "Bot stopped")
             await close_pool()
@@ -90,6 +112,84 @@ class PolymarketBot:
             await log_entry("bot", "info", "Historical calibration loaded")
         except Exception as e:
             logger.debug(f"Calibration load: {e}")
+
+    def _parse_divergence_feeds(self) -> list[dict]:
+        raw = settings.roda_divergence_feeds_json.strip()
+        if not raw:
+            return [
+                {
+                    "source": "manifold",
+                    "provider": "manifold",
+                    "sort": "most-popular",
+                    "filter": "open",
+                    "contract_type": "BINARY",
+                    "limit": 250,
+                    "min_similarity": 0.34,
+                },
+                {
+                    "source": "kalshi",
+                    "provider": "kalshi",
+                    "status": "open",
+                    "limit": 250,
+                    "min_similarity": 0.34,
+                },
+            ]
+        try:
+            parsed = json.loads(raw)
+        except Exception as exc:
+            logger.debug(f"Divergence feed config parse failed: {exc}")
+            return []
+        if isinstance(parsed, dict):
+            parsed = parsed.get("feeds") or parsed.get("sources") or parsed.get("providers") or []
+        if not isinstance(parsed, list):
+            return []
+        feeds: list[dict] = []
+        for item in parsed:
+            if isinstance(item, dict) and item.get("url"):
+                feeds.append(item)
+        return feeds
+
+    async def _refresh_roda_divergence_sources(self):
+        feeds = self._parse_divergence_feeds()
+        if not feeds:
+            return
+        refresh_seconds = max(15, int(settings.roda_divergence_refresh_seconds))
+        while not self._shutdown_event.is_set():
+            try:
+                self._roda_divergence_sources = await fetch_divergence_feeds(feeds, markets=self._roda_latest_markets)
+                await log_entry(
+                    "roda",
+                    "info",
+                    "Divergence feeds refreshed",
+                    {"markets": len(self._roda_divergence_sources), "feeds": len(feeds)},
+                )
+            except Exception as exc:
+                logger.debug(f"Divergence feed refresh failed: {exc}")
+            try:
+                await asyncio.wait_for(self._shutdown_event.wait(), timeout=refresh_seconds)
+                break
+            except asyncio.TimeoutError:
+                continue
+
+    async def _auto_recalibration_loop(self):
+        interval = max(300, int(settings.auto_recalibration_interval_seconds))
+        if not settings.auto_recalibration_enabled:
+            return
+        while not self._shutdown_event.is_set():
+            try:
+                await run_auto_recalibration(
+                    window_days=settings.auto_recalibration_window_days,
+                    min_trades=settings.auto_recalibration_min_trades,
+                    apply_changes=settings.auto_recalibration_apply_changes,
+                    max_adjustment_pct=settings.auto_recalibration_max_adjustment_pct,
+                )
+            except Exception as exc:
+                logger.debug(f"Auto recalibration skipped: {exc}")
+            try:
+                await asyncio.wait_for(self._shutdown_event.wait(), timeout=interval)
+                break
+            except asyncio.TimeoutError:
+                continue
 
     async def run_loop(self):
         while self.running and not self._shutdown_event.is_set():
@@ -111,6 +211,9 @@ class PolymarketBot:
 
     async def _attempt_signal(self, signal: dict, config: dict, risk_mgr: RiskManager, paper_on: bool, label: str = "") -> bool:
         try:
+            detected_at = signal.get("detected_at") or utcnow()
+            signal["detected_at"] = detected_at
+            decision_started = utcnow()
             can_trade, reason = await risk_mgr.can_trade(signal)
             if not can_trade:
                 if label:
@@ -120,17 +223,59 @@ class PolymarketBot:
                 return False
 
             sig_id = await insert_signal(signal)
+            decision_finished = utcnow()
+            signal["signal_id"] = sig_id
+            signal["signal_recorded_at"] = decision_finished
+            decision_latency = duration_ms(detected_at, decision_finished)
+            if decision_latency is not None:
+                await record_latency_event({
+                    "signal_id": sig_id,
+                    "market_id": signal["market_id"],
+                    "signal_type": signal["signal_type"],
+                    "stage": "signal_to_decision",
+                    "duration_ms": decision_latency,
+                    "started_at": detected_at,
+                    "finished_at": decision_finished,
+                    "details": {"label": label or "signal", "paper_mode": paper_on},
+                })
             logger.info(
                 f"{label or 'Signal'} #{sig_id} {signal['direction']} "
                 f"edge={signal['edge']:.3f} kelly=${signal['kelly_size_usd']:.2f} "
                 f"type={signal['signal_type']} conf={signal.get('confidence', 0.0):.2f}"
             )
             trade = None
+            execution_started = utcnow()
             if paper_on and self._paper:
                 trade = await self._paper.execute_signal(signal)
             else:
                 trade = await self.executor.execute_signal(signal, config)
+            execution_finished = utcnow()
             if trade:
+                trade["signal_id"] = sig_id
+                execution_latency = duration_ms(execution_started, execution_finished)
+                if execution_latency is not None:
+                    await record_latency_event({
+                        "signal_id": sig_id,
+                        "market_id": signal["market_id"],
+                        "signal_type": signal["signal_type"],
+                        "stage": "decision_to_execution",
+                        "duration_ms": execution_latency,
+                        "started_at": execution_started,
+                        "finished_at": execution_finished,
+                        "details": {"label": label or "signal", "paper_mode": paper_on, "order_status": trade.get("order_status")},
+                    })
+                signal_to_trade_latency = duration_ms(detected_at, execution_finished)
+                if signal_to_trade_latency is not None:
+                    await record_latency_event({
+                        "signal_id": sig_id,
+                        "market_id": signal["market_id"],
+                        "signal_type": signal["signal_type"],
+                        "stage": "signal_to_trade_recorded",
+                        "duration_ms": signal_to_trade_latency,
+                        "started_at": detected_at,
+                        "finished_at": execution_finished,
+                        "details": {"trade_id": trade.get("id"), "paper_mode": paper_on},
+                    })
                 await self._mark_acted(sig_id)
                 return True
             return False
@@ -168,30 +313,35 @@ class PolymarketBot:
         roda_config = {
             **config,
             "roda_enabled": config.get("roda_enabled", settings.roda_enabled),
-            "roda_min_confidence": settings.roda_min_confidence,
-            "roda_min_age_hours": settings.roda_min_age_hours,
-            "roda_max_age_hours": settings.roda_max_age_hours,
-            "roda_max_entry_price": settings.roda_max_entry_price,
-            "roda_min_sources": settings.roda_min_sources,
-            "roda_hold_window_hours": settings.roda_hold_window_hours,
-            "roda_max_position_pct": settings.roda_max_position_pct,
+            "roda_mode": config.get("roda_mode", settings.roda_mode),
+            "roda_min_confidence": config.get("roda_min_confidence", settings.roda_min_confidence),
+            "roda_min_age_hours": config.get("roda_min_age_hours", settings.roda_min_age_hours),
+            "roda_max_age_hours": config.get("roda_max_age_hours", settings.roda_max_age_hours),
+            "roda_max_entry_price": config.get("roda_max_entry_price", settings.roda_max_entry_price),
+            "roda_min_sources": config.get("roda_min_sources", settings.roda_min_sources),
+            "roda_hold_window_hours": config.get("roda_hold_window_hours", settings.roda_hold_window_hours),
+            "roda_max_position_pct": config.get("roda_max_position_pct", settings.roda_max_position_pct),
+            "roda_divergence_min_edge": config.get("roda_divergence_min_edge", settings.roda_divergence_min_edge),
+            "roda_divergence_min_confidence": config.get("roda_divergence_min_confidence", settings.roda_divergence_min_confidence),
+            "roda_divergence_min_sources": config.get("roda_divergence_min_sources", settings.roda_divergence_min_sources),
         }
         lch_config = {
             **config,
             "lch_enabled": config.get("lch_enabled", settings.lch_enabled),
-            "lch_min_hours_to_resolve": settings.lch_min_hours_to_resolve,
-            "lch_lookback_hours": settings.lch_lookback_hours,
-            "lch_min_shock_magnitude": settings.lch_min_shock_magnitude,
-            "lch_min_z_score": settings.lch_min_z_score,
-            "lch_min_recovery_probability": settings.lch_min_recovery_probability,
-            "lch_stop_loss_pct": settings.lch_stop_loss_pct,
-            "lch_take_profit_pct_of_shock": settings.lch_take_profit_pct_of_shock,
-            "lch_max_hold_minutes": settings.lch_max_hold_minutes,
-            "lch_max_position_pct": settings.lch_max_position_pct,
-            "lch_kelly_fraction": settings.lch_kelly_fraction,
-            "lch_min_position_size_usd": settings.lch_min_position_size_usd,
-            "lch_max_position_size_usd": settings.lch_max_position_size_usd,
-            "lch_max_daily_trades": settings.lch_max_daily_trades,
+            "lch_min_hours_to_resolve": config.get("lch_min_hours_to_resolve", settings.lch_min_hours_to_resolve),
+            "lch_lookback_hours": config.get("lch_lookback_hours", settings.lch_lookback_hours),
+            "lch_min_shock_magnitude": config.get("lch_min_shock_magnitude", settings.lch_min_shock_magnitude),
+            "lch_min_z_score": config.get("lch_min_z_score", settings.lch_min_z_score),
+            "lch_min_recovery_probability": config.get("lch_min_recovery_probability", settings.lch_min_recovery_probability),
+            "lch_stop_loss_pct": config.get("lch_stop_loss_pct", settings.lch_stop_loss_pct),
+            "lch_take_profit_pct_of_shock": config.get("lch_take_profit_pct_of_shock", settings.lch_take_profit_pct_of_shock),
+            "lch_max_hold_minutes": config.get("lch_max_hold_minutes", settings.lch_max_hold_minutes),
+            "lch_max_position_pct": config.get("lch_max_position_pct", settings.lch_max_position_pct),
+            "lch_kelly_fraction": config.get("lch_kelly_fraction", settings.lch_kelly_fraction),
+            "lch_min_position_size_usd": config.get("lch_min_position_size_usd", settings.lch_min_position_size_usd),
+            "lch_max_position_size_usd": config.get("lch_max_position_size_usd", settings.lch_max_position_size_usd),
+            "lch_max_daily_trades": config.get("lch_max_daily_trades", settings.lch_max_daily_trades),
+            "lch_max_wash_trading_score": config.get("lch_max_wash_trading_score", settings.lch_max_wash_trading_score),
         }
         hybrid_config = {
             **config,
@@ -200,6 +350,11 @@ class PolymarketBot:
         mss2_config = {
             **config,
             "mss2_enabled": config.get("mss2_enabled", settings.mss2_enabled),
+            "mss2_min_spread_bps": config.get("mss2_min_spread_bps", settings.mss2_min_spread_bps),
+            "mss2_min_expected_profit_bps": config.get("mss2_min_expected_profit_bps", settings.mss2_min_expected_profit_bps),
+            "mss2_max_adverse_selection_score": config.get("mss2_max_adverse_selection_score", settings.mss2_max_adverse_selection_score),
+            "mss2_min_fill_probability_proxy": config.get("mss2_min_fill_probability_proxy", settings.mss2_min_fill_probability_proxy),
+            "mss2_max_queue_pressure": config.get("mss2_max_queue_pressure", settings.mss2_max_queue_pressure),
         }
 
         async with PolymarketClient() as client:
@@ -217,6 +372,10 @@ class PolymarketBot:
             roda_signals = await detect_roda_signals(
                 valid,
                 news_api_key=settings.news_api_key,
+                divergence_sources_by_market={
+                    **self._roda_divergence_sources,
+                    **(config.get("roda_divergence_sources_by_market") if isinstance(config.get("roda_divergence_sources_by_market"), dict) else {}),
+                } or None,
                 config=roda_config,
                 kelly_fraction=dyn_kelly,
                 total_capital=capital,
@@ -237,6 +396,7 @@ class PolymarketBot:
                 kelly_fraction=dyn_kelly,
                 total_capital=capital,
             )
+            self._roda_latest_markets = list(valid)
             for signal in roda_signals:
                 if await self._attempt_signal(signal, config, risk_mgr, paper_on, label="RODA"):
                     signals_found += 1

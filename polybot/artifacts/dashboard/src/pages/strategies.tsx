@@ -25,6 +25,7 @@ const SIGNAL_LABELS: Record<string, string> = {
   sentiment_lag: "Sentiment Lag",
   implied_prob: "Implied Probability",
   roda_oracle_lag: "Resolution Lag Arb",
+  roda_divergence: "RODA Divergence",
   lch_cascade: "LCH Cascade",
   hybrid_roda_lch_cross: "Hybrid",
   mss2_spread_capture: "MSS2",
@@ -105,14 +106,17 @@ export default function Strategies() {
   const rows = useMemo(() => {
     const paperByType = paperStats?.by_signal_type ?? {};
     const reportByType = paperStats?.strategy_reports ?? {};
-    const signalAgg: Record<string, { total: number; pending: number; avgEdge: number; avgConf: number }> = {};
+    const signalAgg: Record<string, { total: number; pending: number; avgEdge: number; avgConf: number; avgQueuePressure: number; avgFillDelay: number }> = {};
     for (const signal of signals) {
       const key = String(signal.signal_type ?? "unknown");
-      const bucket = signalAgg[key] ?? { total: 0, pending: 0, avgEdge: 0, avgConf: 0 };
+      const bucket = signalAgg[key] ?? { total: 0, pending: 0, avgEdge: 0, avgConf: 0, avgQueuePressure: 0, avgFillDelay: 0 };
+      const details = (signal.details ?? {}) as Record<string, unknown>;
       bucket.total += 1;
       if (signal.status === "pending") bucket.pending += 1;
       bucket.avgEdge += Number(signal.edge ?? 0);
       bucket.avgConf += Number(signal.confidence ?? 0);
+      bucket.avgQueuePressure += Number(details.mss2_queue_pressure ?? signal.mss2_queue_pressure ?? 0);
+      bucket.avgFillDelay += Number(details.mss2_expected_fill_delay_seconds ?? signal.mss2_expected_fill_delay_seconds ?? 0);
       signalAgg[key] = bucket;
     }
 
@@ -137,6 +141,7 @@ export default function Strategies() {
       const paper = paperByType[type] ?? { total: 0, wins: 0, pnl: 0, win_rate: 0 };
       const report = reportByType[type] ?? {};
       const signalsForType = signalAgg[type] ?? { total: 0, pending: 0, avgEdge: 0, avgConf: 0 };
+      const signalsForTypeDetailed = signalAgg[type] ?? { total: 0, pending: 0, avgEdge: 0, avgConf: 0, avgQueuePressure: 0, avgFillDelay: 0 };
       const open = openAgg[type] ?? { count: 0, exposure: 0 };
       const totalSignals = signalsForType.total || 0;
       return {
@@ -156,6 +161,8 @@ export default function Strategies() {
         exposureUsd: open.exposure,
         avgEdge: totalSignals > 0 ? signalsForType.avgEdge / totalSignals : 0,
         avgConf: totalSignals > 0 ? signalsForType.avgConf / totalSignals : 0,
+        avgQueuePressure: totalSignals > 0 ? signalsForTypeDetailed.avgQueuePressure / totalSignals : Number(report.avg_queue_pressure ?? 0),
+        avgFillDelay: totalSignals > 0 ? signalsForTypeDetailed.avgFillDelay / totalSignals : Number(report.avg_expected_fill_delay_seconds ?? 0),
       };
     }).sort((a, b) => b.pnl - a.pnl || b.liveSignals - a.liveSignals);
   }, [paperStats, signals, paperPositions]);
@@ -346,6 +353,12 @@ export default function Strategies() {
                     <div>{t("strategy_avg_edge")}: <span className={cn("text-foreground tabular-nums", row.avgEdge >= 0 ? "text-success" : "text-destructive")}>{row.avgEdge >= 0 ? "+" : ""}{(row.avgEdge * 100).toFixed(2)}%</span></div>
                     <div className="text-right">{t("strategy_avg_confidence")}: <span className="text-foreground tabular-nums">{(row.avgConf * 100).toFixed(0)}%</span></div>
                   </div>
+                  {row.type === "mss2_spread_capture" && (
+                    <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-muted-foreground">
+                      <div>Queue: <span className="text-foreground tabular-nums">{(row.avgQueuePressure * 100).toFixed(0)}%</span></div>
+                      <div className="text-right">Fill delay: <span className="text-foreground tabular-nums">{row.avgFillDelay.toFixed(0)}s</span></div>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-muted-foreground">
                     <div>{t("strategy_max_drawdown")}: <span className="text-foreground tabular-nums">{row.maxDrawdown.toFixed(2)}%</span></div>
                     <div className="text-right">{t("strategy_sharpe")}: <span className="text-foreground tabular-nums">{Number.isFinite(row.sharpe) ? row.sharpe.toFixed(2) : "∞"}</span></div>

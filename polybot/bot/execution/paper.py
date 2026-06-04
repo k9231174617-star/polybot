@@ -10,7 +10,8 @@ from typing import Optional
 from loguru import logger
 
 from bot.execution.fees import estimate_taker_fee
-from bot.utils.db import get_pool, log_entry
+from bot.utils.db import get_pool, log_entry, record_latency_event
+from bot.observability.latency import utcnow, duration_ms
 
 
 def _token_price(side: str, yes_price: float) -> float:
@@ -60,9 +61,9 @@ class PaperExecutor:
                 fee = estimate_taker_fee(size, yes_price, d, category=category)
             tid = await conn.fetchval("""
                 INSERT INTO paper_trades
-                  (market_id, market_question, side, action, size_usd, price, slippage, fee_usd, realized_pnl, signal_type)
-                VALUES ($1,$2,$3,'buy',$4,$5,$6,$7,NULL,$8) RETURNING id
-            """, signal["market_id"], signal["market_question"], d, size,
+                  (market_id, market_question, signal_id, side, action, size_usd, price, slippage, fee_usd, realized_pnl, signal_type)
+                VALUES ($1,$2,$3,$4,'buy',$5,$6,$7,$8,NULL,$9) RETURNING id
+            """, signal["market_id"], signal["market_question"], signal.get("signal_id"), d, size,
                 exec_price, slippage, fee, signal.get("signal_type", "price_discrepancy"))
 
             await conn.execute("""
@@ -75,6 +76,22 @@ class PaperExecutor:
                 signal.get("signal_type", "price_discrepancy"), signal.get("confidence", 0.5))
 
         logger.info(f"[PAPER] {d} ${size:.2f} @ {exec_price:.3f} edge={signal['edge']:.3f}")
+        trade_recorded_at = utcnow()
+        detected_at = signal.get("detected_at")
+        signal_id = signal.get("signal_id")
+        if signal_id is not None and detected_at is not None:
+            signal_to_trade_ms = duration_ms(detected_at, trade_recorded_at)
+            if signal_to_trade_ms is not None:
+                await record_latency_event({
+                    "signal_id": signal_id,
+                    "market_id": signal["market_id"],
+                    "signal_type": signal.get("signal_type", "price_discrepancy"),
+                    "stage": "signal_to_trade_recorded",
+                    "duration_ms": signal_to_trade_ms,
+                    "started_at": detected_at,
+                    "finished_at": trade_recorded_at,
+                    "details": {"trade_id": tid, "paper_mode": True},
+                })
         await log_entry("paper", "info",
             f"Paper trade: {d} ${size:.2f} edge={signal['edge']:.3f}",
             {"market_id": signal["market_id"], "signal_type": signal.get("signal_type")})

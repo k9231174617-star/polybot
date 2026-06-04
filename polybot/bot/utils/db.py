@@ -1,4 +1,5 @@
 """Database utilities for the bot — uses asyncpg for async access."""
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
@@ -42,14 +43,31 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         reconciliation_warning_usd REAL NOT NULL DEFAULT 5.0,
         reconciliation_critical_usd REAL NOT NULL DEFAULT 25.0,
         roda_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        roda_mode TEXT NOT NULL DEFAULT 'auto',
         lch_enabled BOOLEAN NOT NULL DEFAULT TRUE,
         hybrid_enabled BOOLEAN NOT NULL DEFAULT TRUE,
         mss2_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        roda_min_confidence REAL NOT NULL DEFAULT 0.95,
+        roda_min_sources INTEGER NOT NULL DEFAULT 3,
+        roda_divergence_min_edge REAL NOT NULL DEFAULT 0.06,
+        roda_divergence_min_confidence REAL NOT NULL DEFAULT 0.60,
+        roda_divergence_min_sources INTEGER NOT NULL DEFAULT 2,
+        lch_min_z_score REAL NOT NULL DEFAULT 2.5,
+        lch_min_recovery_probability REAL NOT NULL DEFAULT 0.70,
+        lch_max_wash_trading_score REAL NOT NULL DEFAULT 0.72,
+        mss2_min_spread_bps REAL NOT NULL DEFAULT 35.0,
+        mss2_min_expected_profit_bps REAL NOT NULL DEFAULT 35.0,
+        mss2_max_adverse_selection_score REAL NOT NULL DEFAULT 0.65,
+        mss2_min_fill_probability_proxy REAL NOT NULL DEFAULT 0.30,
+        mss2_max_queue_pressure REAL NOT NULL DEFAULT 0.75,
         updated_at TIMESTAMP DEFAULT NOW()
     )
     """,
     """
     ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS roda_enabled BOOLEAN NOT NULL DEFAULT TRUE
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS roda_mode TEXT NOT NULL DEFAULT 'auto'
     """,
     """
     ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS lch_enabled BOOLEAN NOT NULL DEFAULT TRUE
@@ -59,6 +77,45 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     """,
     """
     ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS mss2_enabled BOOLEAN NOT NULL DEFAULT TRUE
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS roda_min_confidence REAL NOT NULL DEFAULT 0.95
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS roda_min_sources INTEGER NOT NULL DEFAULT 3
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS roda_divergence_min_edge REAL NOT NULL DEFAULT 0.06
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS roda_divergence_min_confidence REAL NOT NULL DEFAULT 0.60
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS roda_divergence_min_sources INTEGER NOT NULL DEFAULT 2
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS lch_min_z_score REAL NOT NULL DEFAULT 2.5
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS lch_min_recovery_probability REAL NOT NULL DEFAULT 0.70
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS lch_max_wash_trading_score REAL NOT NULL DEFAULT 0.72
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS mss2_min_spread_bps REAL NOT NULL DEFAULT 35.0
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS mss2_min_expected_profit_bps REAL NOT NULL DEFAULT 35.0
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS mss2_max_adverse_selection_score REAL NOT NULL DEFAULT 0.65
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS mss2_min_fill_probability_proxy REAL NOT NULL DEFAULT 0.30
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS mss2_max_queue_pressure REAL NOT NULL DEFAULT 0.75
     """,
     """
     ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS retention_scan_interval INTEGER NOT NULL DEFAULT 48
@@ -130,7 +187,8 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         confidence REAL NOT NULL DEFAULT 0,
         status TEXT NOT NULL DEFAULT 'pending',
         detected_at TIMESTAMP DEFAULT NOW(),
-        acted_at TIMESTAMP
+        acted_at TIMESTAMP,
+        details JSONB
     )
     """,
     """
@@ -138,6 +196,7 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         id SERIAL PRIMARY KEY,
         market_id TEXT NOT NULL,
         market_question TEXT NOT NULL,
+        signal_id INTEGER,
         side TEXT NOT NULL,
         action TEXT NOT NULL,
         size_usd REAL NOT NULL,
@@ -173,6 +232,20 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS latency_events (
+        id SERIAL PRIMARY KEY,
+        signal_id INTEGER,
+        market_id TEXT NOT NULL,
+        signal_type TEXT NOT NULL,
+        stage TEXT NOT NULL,
+        duration_ms REAL NOT NULL,
+        started_at TIMESTAMP NOT NULL,
+        finished_at TIMESTAMP NOT NULL,
+        details JSONB,
+        created_at TIMESTAMP DEFAULT NOW()
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS paper_positions (
         id SERIAL PRIMARY KEY,
         market_id TEXT NOT NULL,
@@ -196,6 +269,7 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         id SERIAL PRIMARY KEY,
         market_id TEXT NOT NULL,
         market_question TEXT NOT NULL,
+        signal_id INTEGER,
         side TEXT NOT NULL,
         action TEXT NOT NULL,
         size_usd REAL NOT NULL,
@@ -236,6 +310,9 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     )
     """,
     """
+    ALTER TABLE trades ADD COLUMN IF NOT EXISTS signal_id INTEGER
+    """,
+    """
     ALTER TABLE trades ADD COLUMN IF NOT EXISTS order_id TEXT
     """,
     """
@@ -248,6 +325,9 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     ALTER TABLE trades ADD COLUMN IF NOT EXISTS remaining_size_usd REAL NOT NULL DEFAULT 0
     """,
     """
+    ALTER TABLE paper_trades ADD COLUMN IF NOT EXISTS signal_id INTEGER
+    """,
+    """
     ALTER TABLE paper_trades ADD COLUMN IF NOT EXISTS order_id TEXT
     """,
     """
@@ -258,6 +338,9 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     """,
     """
     ALTER TABLE paper_trades ADD COLUMN IF NOT EXISTS remaining_size_usd REAL NOT NULL DEFAULT 0
+    """,
+    """
+    ALTER TABLE signals ADD COLUMN IF NOT EXISTS details JSONB
     """,
     """
     ALTER TABLE positions ADD COLUMN IF NOT EXISTS order_id TEXT
@@ -308,6 +391,18 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     CREATE INDEX IF NOT EXISTS trades_market_id_idx ON trades (market_id)
     """,
     """
+    CREATE INDEX IF NOT EXISTS trades_signal_id_idx ON trades (signal_id)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS latency_events_created_at_idx ON latency_events (created_at DESC)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS latency_events_stage_created_at_idx ON latency_events (stage, created_at DESC)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS latency_events_signal_type_created_at_idx ON latency_events (signal_type, created_at DESC)
+    """,
+    """
     CREATE INDEX IF NOT EXISTS paper_positions_status_opened_at_idx ON paper_positions (status, opened_at DESC)
     """,
     """
@@ -318,6 +413,9 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     """,
     """
     CREATE INDEX IF NOT EXISTS paper_trades_signal_type_executed_at_idx ON paper_trades (signal_type, executed_at DESC)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS paper_trades_signal_id_idx ON paper_trades (signal_id)
     """,
     """
     CREATE INDEX IF NOT EXISTS log_entries_created_at_idx ON log_entries (created_at DESC)
@@ -349,12 +447,27 @@ DEFAULT_BOT_CONFIG_SQL = """
         reconciliation_warning_usd,
         reconciliation_critical_usd,
         roda_enabled,
+        roda_mode,
         lch_enabled,
         hybrid_enabled,
-        mss2_enabled
+        mss2_enabled,
+        roda_min_confidence,
+        roda_min_sources,
+        roda_divergence_min_edge,
+        roda_divergence_min_confidence,
+        roda_divergence_min_sources,
+        lch_min_z_score,
+        lch_min_recovery_probability,
+        lch_max_wash_trading_score,
+        mss2_min_spread_bps,
+        mss2_min_expected_profit_bps,
+        mss2_max_adverse_selection_score,
+        mss2_min_fill_probability_proxy,
+        mss2_max_queue_pressure
     )
     SELECT
-        0.05, 0.05, 0.03, 0.25, 30, TRUE, 1000, 0.15, TRUE, 1000, 48, TRUE, 0.01, 0.03, 5.0, 25.0, TRUE, TRUE, TRUE, TRUE
+        0.05, 0.05, 0.03, 0.25, 30, TRUE, 1000, 0.15, TRUE, 1000, 48, TRUE, 0.01, 0.03, 5.0, 25.0, TRUE, 'auto', TRUE, TRUE, TRUE,
+        0.95, 3, 0.06, 0.60, 2, 2.5, 0.70, 0.72, 35.0, 35.0, 0.65, 0.30, 0.75
     WHERE NOT EXISTS (SELECT 1 FROM bot_config)
 """
 
@@ -378,6 +491,13 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _naive_utc(value: Any) -> Any:
+    if isinstance(value, datetime):
+        dt = value.astimezone(timezone.utc) if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=None)
+    return value
+
+
 async def apply_retention_policy() -> dict[str, int]:
     """Delete old rows according to configured retention windows."""
     pool = await get_pool()
@@ -386,6 +506,7 @@ async def apply_retention_policy() -> dict[str, int]:
         "pnl_snapshots": 0,
         "paper_pnl_snapshots": 0,
         "signals": 0,
+        "latency_events": 0,
         "trades": 0,
         "paper_trades": 0,
         "positions": 0,
@@ -398,6 +519,7 @@ async def apply_retention_policy() -> dict[str, int]:
     trade_cutoff = now - timedelta(days=max(30, int(getattr(settings, "trade_retention_days", 730))))
     signal_cutoff = now - timedelta(days=max(30, int(getattr(settings, "signal_retention_days", 365))))
     market_cutoff = now - timedelta(days=max(30, int(getattr(settings, "market_retention_days", 180))))
+    latency_cutoff = now - timedelta(days=max(7, int(getattr(settings, "latency_retention_days", 30))))
 
     async with pool.acquire() as conn:
         stats["log_entries"] = _rows_affected(await conn.execute(
@@ -415,6 +537,10 @@ async def apply_retention_policy() -> dict[str, int]:
         stats["signals"] = _rows_affected(await conn.execute(
             "DELETE FROM signals WHERE detected_at < $1 AND status IN ('pending','acted')",
             signal_cutoff.replace(tzinfo=None),
+        ))
+        stats["latency_events"] = _rows_affected(await conn.execute(
+            "DELETE FROM latency_events WHERE created_at < $1",
+            latency_cutoff.replace(tzinfo=None),
         ))
         stats["trades"] = _rows_affected(await conn.execute(
             "DELETE FROM trades WHERE executed_at < $1",
@@ -468,6 +594,33 @@ async def insert_balance_reconciliation(snapshot: dict[str, Any]) -> int:
             json.dumps(snapshot.get("details")) if snapshot.get("details") is not None else None,
         )
         return int(row["id"])
+
+
+async def record_latency_event(event: dict[str, Any]) -> int:
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            import json
+            row = await conn.fetchrow(
+                """
+                INSERT INTO latency_events
+                  (signal_id, market_id, signal_type, stage, duration_ms, started_at, finished_at, details, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+                RETURNING id
+                """,
+                event.get("signal_id"),
+                event["market_id"],
+                event["signal_type"],
+                event["stage"],
+                event["duration_ms"],
+                _naive_utc(event["started_at"]),
+                _naive_utc(event["finished_at"]),
+                json.dumps(event.get("details")) if event.get("details") is not None else None,
+            )
+            return int(row["id"])
+    except Exception as exc:
+        logger.debug(f"Latency event write skipped: {exc}")
+        return 0
 
 
 async def get_pool() -> asyncpg.Pool:
@@ -584,16 +737,37 @@ async def upsert_market(market: dict):
 async def insert_signal(signal: dict) -> int:
     pool = await get_pool()
     async with pool.acquire() as conn:
+        core_fields = {
+            "market_id",
+            "market_question",
+            "signal_type",
+            "direction",
+            "market_price",
+            "model_probability",
+            "edge",
+            "kelly_size_usd",
+            "confidence",
+            "status",
+            "detected_at",
+            "acted_at",
+            "signal_id",
+            "details",
+        }
+        details = signal.get("details")
+        if details is None:
+            details = {key: value for key, value in signal.items() if key not in core_fields and value is not None}
         row = await conn.fetchrow("""
             INSERT INTO signals (market_id, market_question, signal_type, direction,
                                   market_price, model_probability, edge, kelly_size_usd,
-                                  confidence, status, detected_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', NOW())
+                                  confidence, status, detected_at, details)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', COALESCE($10, NOW()), $11)
             RETURNING id
         """,
             signal["market_id"], signal["market_question"], signal["signal_type"],
             signal["direction"], signal["market_price"], signal["model_probability"],
-            signal["edge"], signal["kelly_size_usd"], signal.get("confidence", 0.5)
+            signal["edge"], signal["kelly_size_usd"], signal.get("confidence", 0.5),
+            _naive_utc(signal.get("detected_at")),
+            json.dumps(details, default=str) if details else None,
         )
         return row["id"]
 
@@ -602,14 +776,14 @@ async def insert_trade(trade: dict) -> int:
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow("""
-            INSERT INTO trades (market_id, market_question, side, action, size_usd, price,
+            INSERT INTO trades (market_id, market_question, signal_id, side, action, size_usd, price,
                                  slippage, fee_usd, realized_pnl, tx_hash, order_id, order_status,
                                  filled_size_usd, remaining_size_usd, executed_at, order_type)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), $15)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), $16)
             RETURNING id
         """,
-            trade["market_id"], trade["market_question"], trade["side"], trade["action"],
-            trade["size_usd"], trade["price"], trade.get("slippage", 0),
+            trade["market_id"], trade["market_question"], trade.get("signal_id"),
+            trade["side"], trade["action"], trade["size_usd"], trade["price"], trade.get("slippage", 0),
             trade.get("fee_usd", 0), trade.get("realized_pnl"),
             trade.get("tx_hash"), trade.get("order_id"), trade.get("order_status", "filled"),
             trade.get("filled_size_usd", trade["size_usd"]), trade.get("remaining_size_usd", 0),
@@ -641,11 +815,105 @@ async def get_bot_config() -> dict:
                 "reconciliation_warning_usd": 5.0,
                 "reconciliation_critical_usd": 25.0,
                 "roda_enabled": True,
+                "roda_mode": "auto",
                 "lch_enabled": True,
                 "hybrid_enabled": True,
                 "mss2_enabled": True,
+                "roda_min_confidence": 0.95,
+                "roda_min_sources": 3,
+                "roda_divergence_min_edge": 0.06,
+                "roda_divergence_min_confidence": 0.60,
+                "roda_divergence_min_sources": 2,
+                "lch_min_z_score": 2.5,
+                "lch_min_recovery_probability": 0.70,
+                "lch_max_wash_trading_score": 0.72,
+                "mss2_min_spread_bps": 35.0,
+                "mss2_min_expected_profit_bps": 35.0,
+                "mss2_max_adverse_selection_score": 0.65,
+                "mss2_min_fill_probability_proxy": 0.30,
+                "mss2_max_queue_pressure": 0.75,
             }
         return dict(row)
+
+
+async def update_bot_config(patch: dict[str, Any]) -> dict:
+    if not patch:
+        return await get_bot_config()
+    pool = await get_pool()
+    allowed = {
+        "edge_threshold",
+        "max_position_pct",
+        "daily_loss_limit_pct",
+        "kelly_fraction",
+        "scan_interval_seconds",
+        "use_limit_orders",
+        "min_liquidity_usd",
+        "max_correlated_exposure_pct",
+        "paper_trading",
+        "paper_capital_usd",
+        "retention_scan_interval",
+        "reconciliation_enabled",
+        "reconciliation_warning_pct",
+        "reconciliation_critical_pct",
+        "reconciliation_warning_usd",
+        "reconciliation_critical_usd",
+        "roda_enabled",
+        "lch_enabled",
+        "hybrid_enabled",
+        "mss2_enabled",
+        "roda_min_confidence",
+        "roda_min_sources",
+        "roda_divergence_min_edge",
+        "roda_divergence_min_confidence",
+        "roda_divergence_min_sources",
+        "lch_min_z_score",
+        "lch_min_recovery_probability",
+        "lch_max_wash_trading_score",
+        "mss2_min_spread_bps",
+        "mss2_min_expected_profit_bps",
+        "mss2_max_adverse_selection_score",
+        "mss2_min_fill_probability_proxy",
+        "mss2_max_queue_pressure",
+        "roda_mode",
+        "roda_min_confidence",
+        "roda_min_sources",
+        "roda_divergence_min_edge",
+        "roda_divergence_min_confidence",
+        "roda_divergence_min_sources",
+        "lch_min_z_score",
+        "lch_min_recovery_probability",
+        "lch_max_wash_trading_score",
+    }
+    patch = {key: value for key, value in patch.items() if key in allowed}
+    if not patch:
+        return await get_bot_config()
+
+    assignments = []
+    values: list[Any] = []
+    idx = 1
+    for key, value in patch.items():
+        assignments.append(f"{key} = ${idx}")
+        values.append(value)
+        idx += 1
+    assignments.append(f"updated_at = ${idx}")
+    values.append(_utc_now())
+
+    async with pool.acquire() as conn:
+        existing = await conn.fetchrow("SELECT id FROM bot_config ORDER BY id LIMIT 1")
+        if existing:
+            await conn.execute(
+                f"UPDATE bot_config SET {', '.join(assignments)} WHERE id = ${idx + 1}",
+                *values,
+                existing["id"],
+            )
+        else:
+            columns = ", ".join(list(patch.keys()) + ["updated_at"])
+            placeholders = ", ".join(f"${i}" for i in range(1, len(patch) + 2))
+            await conn.execute(
+                f"INSERT INTO bot_config ({columns}) VALUES ({placeholders})",
+                *values,
+            )
+    return await get_bot_config()
 
 
 async def snapshot_pnl(cumulative_pnl: float, portfolio_value: float):

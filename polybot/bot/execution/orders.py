@@ -6,8 +6,9 @@ from loguru import logger
 from bot.config import settings
 from bot.execution.fees import estimate_taker_fee, resolve_market_fee_rate
 from bot.notifications import send_telegram_alert
-from bot.utils.db import insert_trade, insert_balance_reconciliation, get_pool
+from bot.utils.db import insert_trade, insert_balance_reconciliation, get_pool, record_latency_event
 from bot.data.polymarket import PolymarketClient
+from bot.observability.latency import utcnow, duration_ms
 
 try:
     from py_clob_client_v2 import ClobClient, ApiCreds, OrderArgs, OrderType, PartialCreateOrderOptions  # type: ignore
@@ -93,6 +94,7 @@ class OrderExecutor:
             "market_id": market_id,
             "market_question": signal["market_question"],
             "market_category": market_category,
+            "signal_id": signal.get("signal_id"),
             "side": direction,
             "action": "buy",
             "size_usd": size_usd,
@@ -109,10 +111,27 @@ class OrderExecutor:
         }
 
         trade_id = await insert_trade(trade)
+        trade_recorded_at = utcnow()
         logger.info(
             f"Trade recorded: id={trade_id}, {direction} ${filled_size:.2f}, "
             f"status={order_status}, filled={filled_size:.2f}, remaining={remaining_size:.2f}"
         )
+
+        detected_at = signal.get("detected_at")
+        signal_id = signal.get("signal_id")
+        if signal_id is not None and detected_at is not None:
+            signal_to_trade_ms = duration_ms(detected_at, trade_recorded_at)
+            if signal_to_trade_ms is not None:
+                await record_latency_event({
+                    "signal_id": signal_id,
+                    "market_id": market_id,
+                    "signal_type": signal.get("signal_type", "unknown"),
+                    "stage": "signal_to_trade_recorded",
+                    "duration_ms": signal_to_trade_ms,
+                    "started_at": detected_at,
+                    "finished_at": trade_recorded_at,
+                    "details": {"trade_id": trade_id, "order_status": order_status, "paper_mode": False},
+                })
 
         if filled_size > 0:
             await self._open_position(signal, exec_price, filled_size, trade_id, order_id=order_id, order_status=order_status, remaining_size_usd=remaining_size)
@@ -392,7 +411,7 @@ class OrderExecutor:
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """
-                SELECT id, market_id, market_question, side, size_usd, price, order_id, order_status, filled_size_usd, remaining_size_usd
+                SELECT id, market_id, market_question, signal_id, side, size_usd, price, order_id, order_status, filled_size_usd, remaining_size_usd
                 FROM trades
                 WHERE order_id IS NOT NULL
                   AND action = 'buy'
@@ -439,6 +458,22 @@ class OrderExecutor:
                         status,
                         row["order_id"],
                     )
+                    if row["signal_id"] is not None and status in {"filled", "matched"}:
+                        signal_row = await conn.fetchrow("SELECT detected_at, signal_type FROM signals WHERE id = $1", row["signal_id"])
+                        if signal_row is not None and signal_row["detected_at"] is not None:
+                            confirmation_at = utcnow()
+                            confirmation_ms = duration_ms(signal_row["detected_at"], confirmation_at)
+                            if confirmation_ms is not None:
+                                await record_latency_event({
+                                    "signal_id": row["signal_id"],
+                                    "market_id": row["market_id"],
+                                    "signal_type": str(signal_row["signal_type"] or "unknown"),
+                                    "stage": "signal_to_confirmation",
+                                    "duration_ms": confirmation_ms,
+                                    "started_at": signal_row["detected_at"],
+                                    "finished_at": confirmation_at,
+                                    "details": {"order_id": row["order_id"], "order_status": status},
+                                })
                     exists = await conn.fetchval(
                         "SELECT id FROM positions WHERE order_id = $1 AND status = 'open'",
                         row["order_id"],

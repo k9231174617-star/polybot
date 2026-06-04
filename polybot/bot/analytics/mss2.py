@@ -145,6 +145,7 @@ class Mss2Scanner:
         max_adverse_selection_score = float(cfg.get("mss2_max_adverse_selection_score", 0.65))
         max_spread_compression_velocity = float(cfg.get("mss2_max_spread_compression_velocity", 60.0))
         max_competitive_pressure = float(cfg.get("mss2_max_competitive_pressure", 0.75))
+        max_queue_pressure = float(cfg.get("mss2_max_queue_pressure", 0.75))
         min_expected_profit_bps = float(cfg.get("mss2_min_expected_profit_bps", 35.0))
         max_position_pct = float(cfg.get("mss2_max_position_pct", cfg.get("max_position_pct", 0.05)))
         min_position_size_usd = float(cfg.get("mss2_min_position_size_usd", 20.0))
@@ -257,6 +258,22 @@ class Mss2Scanner:
                 if fill_prob < min_fill_probability_proxy:
                     continue
 
+                queue_pressure = _clamp(
+                    0.50 * min(1.0, depth_at_entry / max(max_depth_at_level_usd, 1.0))
+                    + 0.30 * (1.0 - fill_prob)
+                    + 0.20 * min(1.0, max(0.0, spread_velocity) / max(max_spread_compression_velocity, 1.0)),
+                    0.0,
+                    1.0,
+                )
+                if queue_pressure > max_queue_pressure:
+                    continue
+
+                expected_fill_delay_seconds = _clamp(
+                    (depth_at_entry / max(trades_5min, 1.0)) * 60.0 * (1.0 + queue_pressure),
+                    5.0,
+                    900.0,
+                )
+
                 adverse_selection_score = _clamp(
                     0.45 * min(1.0, max(0.0, volume_anomaly_ratio - 1.0) / max(max_volume_anomaly_ratio, 1.0))
                     + 0.35 * min(1.0, abs(momentum_2m) / max(max_price_momentum_2min, 1e-6))
@@ -316,6 +333,9 @@ class Mss2Scanner:
                     "mss2_expected_profit_bps": expected_profit_bps,
                     "mss2_depth_at_entry_level": depth_at_entry,
                     "mss2_fill_probability_proxy": fill_prob,
+                    "mss2_queue_pressure": queue_pressure,
+                    "mss2_queue_priority_proxy": 1.0 - queue_pressure,
+                    "mss2_expected_fill_delay_seconds": expected_fill_delay_seconds,
                     "mss2_adverse_selection_score": adverse_selection_score,
                     "mss2_volume_anomaly_ratio": volume_anomaly_ratio,
                     "mss2_price_momentum_2min": momentum_2m,

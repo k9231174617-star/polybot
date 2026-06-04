@@ -4,6 +4,7 @@ import {
   paperPositionsTable,
   paperTradesTable,
   paperPnlSnapshotsTable,
+  signalsTable,
   botConfigTable,
 } from "@workspace/db";
 import { desc, eq, gte, sql } from "drizzle-orm";
@@ -38,6 +39,8 @@ type StrategyReport = {
   stop_loss: number;
   requeue_abandoned: number;
   adverse_selection: number;
+  avg_queue_pressure: number;
+  avg_expected_fill_delay_seconds: number;
 };
 
 const median = (values: number[]): number => {
@@ -82,6 +85,7 @@ const buildStrategyReport = (
   signalType: string,
   rows: Array<Record<string, any>>,
   positions: Array<Record<string, any>>,
+  signals: Array<Record<string, any>>,
   capitalUsd: number,
 ): StrategyReport => {
   const buys = rows.filter((row) => row.action === "buy");
@@ -110,6 +114,17 @@ const buildStrategyReport = (
       return Math.max(0, (closed.getTime() - opened.getTime()) / 1000);
     })
     .filter((value) => value > 0);
+
+  const signalDetails = signals
+    .filter((row) => String(row.signal_type) === signalType)
+    .map((row) => row.details ?? {})
+    .filter((details) => details && typeof details === "object");
+  const queuePressure = signalDetails
+    .map((details) => Number((details as Record<string, any>).mss2_queue_pressure ?? 0))
+    .filter((value) => Number.isFinite(value));
+  const fillDelay = signalDetails
+    .map((details) => Number((details as Record<string, any>).mss2_expected_fill_delay_seconds ?? 0))
+    .filter((value) => Number.isFinite(value));
 
   const dailyReturns = [...dailySeries.values()].map((value) => (capitalUsd > 0 ? value / capitalUsd : 0));
   return {
@@ -141,6 +156,8 @@ const buildStrategyReport = (
     stop_loss: 0,
     requeue_abandoned: 0,
     adverse_selection: 0,
+    avg_queue_pressure: queuePressure.length > 0 ? queuePressure.reduce((sum, value) => sum + value, 0) / queuePressure.length : 0,
+    avg_expected_fill_delay_seconds: fillDelay.length > 0 ? fillDelay.reduce((sum, value) => sum + value, 0) / fillDelay.length : 0,
   };
 };
 
@@ -278,6 +295,11 @@ router.get("/paper/stats", async (req, res): Promise<void> => {
       FROM paper_positions
       ORDER BY opened_at ASC
     `);
+    const signalRows = await db.execute(sql`
+      SELECT signal_type, details
+      FROM signals
+      ORDER BY detected_at ASC
+    `);
 
     const wins = Number(agg["wins"] ?? 0);
     const losses = Number(agg["losses"] ?? 0);
@@ -311,11 +333,19 @@ router.get("/paper/stats", async (req, res): Promise<void> => {
       bucket.push(row);
       positionsByType.set(key, bucket);
     }
+    const signalsByType = new Map<string, Array<Record<string, any>>>();
+    for (const row of signalRows.rows) {
+      const key = String(row["signal_type"] ?? "");
+      const bucket = signalsByType.get(key) ?? [];
+      bucket.push(row);
+      signalsByType.set(key, bucket);
+    }
     for (const key of rowsByType.keys()) {
       strategy_reports[key] = buildStrategyReport(
         key,
         rowsByType.get(key) ?? [],
         positionsByType.get(key) ?? [],
+        signalsByType.get(key) ?? [],
         paperCapital,
       );
     }

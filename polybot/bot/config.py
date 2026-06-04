@@ -32,10 +32,17 @@ class Settings(BaseSettings):
     reconciliation_warning_usd: float = Field(default=5.0, env="RECONCILIATION_WARNING_USD")
     reconciliation_critical_usd: float = Field(default=25.0, env="RECONCILIATION_CRITICAL_USD")
     log_retention_days: int = Field(default=30, env="LOG_RETENTION_DAYS")
+    latency_retention_days: int = Field(default=30, env="LATENCY_RETENTION_DAYS")
     snapshot_retention_days: int = Field(default=365, env="SNAPSHOT_RETENTION_DAYS")
     trade_retention_days: int = Field(default=730, env="TRADE_RETENTION_DAYS")
     signal_retention_days: int = Field(default=365, env="SIGNAL_RETENTION_DAYS")
     market_retention_days: int = Field(default=180, env="MARKET_RETENTION_DAYS")
+    auto_recalibration_enabled: bool = Field(default=False, env="AUTO_RECALIBRATION_ENABLED")
+    auto_recalibration_interval_seconds: int = Field(default=3600, env="AUTO_RECALIBRATION_INTERVAL_SECONDS")
+    auto_recalibration_window_days: int = Field(default=14, env="AUTO_RECALIBRATION_WINDOW_DAYS")
+    auto_recalibration_min_trades: int = Field(default=20, env="AUTO_RECALIBRATION_MIN_TRADES")
+    auto_recalibration_apply_changes: bool = Field(default=False, env="AUTO_RECALIBRATION_APPLY_CHANGES")
+    auto_recalibration_max_adjustment_pct: float = Field(default=0.15, env="AUTO_RECALIBRATION_MAX_ADJUSTMENT_PCT")
 
     # Bot behaviour
     dry_run: bool = Field(default=True, env="DRY_RUN")
@@ -44,6 +51,7 @@ class Settings(BaseSettings):
 
     # RODA strategy
     roda_enabled: bool = Field(default=True, env="RODA_ENABLED")
+    roda_mode: str = Field(default="auto", env="RODA_MODE")
     roda_min_confidence: float = Field(default=0.95, env="RODA_MIN_CONFIDENCE")
     roda_min_age_hours: float = Field(default=1.0, env="RODA_MIN_AGE_HOURS")
     roda_max_age_hours: float = Field(default=24.0, env="RODA_MAX_AGE_HOURS")
@@ -51,6 +59,11 @@ class Settings(BaseSettings):
     roda_min_sources: int = Field(default=3, env="RODA_MIN_SOURCES")
     roda_hold_window_hours: float = Field(default=12.0, env="RODA_HOLD_WINDOW_HOURS")
     roda_max_position_pct: float = Field(default=0.10, env="RODA_MAX_POSITION_PCT")
+    roda_divergence_min_edge: float = Field(default=0.06, env="RODA_DIVERGENCE_MIN_EDGE")
+    roda_divergence_min_confidence: float = Field(default=0.60, env="RODA_DIVERGENCE_MIN_CONFIDENCE")
+    roda_divergence_min_sources: int = Field(default=2, env="RODA_DIVERGENCE_MIN_SOURCES")
+    roda_divergence_feeds_json: str = Field(default="", env="RODA_DIVERGENCE_FEEDS_JSON")
+    roda_divergence_refresh_seconds: int = Field(default=60, env="RODA_DIVERGENCE_REFRESH_SECONDS")
 
     # LCH strategy
     lch_enabled: bool = Field(default=True, env="LCH_ENABLED")
@@ -67,12 +80,18 @@ class Settings(BaseSettings):
     lch_min_position_size_usd: float = Field(default=50.0, env="LCH_MIN_POSITION_SIZE_USD")
     lch_max_position_size_usd: float = Field(default=500.0, env="LCH_MAX_POSITION_SIZE_USD")
     lch_max_daily_trades: int = Field(default=2, env="LCH_MAX_DAILY_TRADES")
+    lch_max_wash_trading_score: float = Field(default=0.72, env="LCH_MAX_WASH_TRADING_SCORE")
 
     # Hybrid strategy
     hybrid_enabled: bool = Field(default=True, env="HYBRID_ENABLED")
 
     # MSS2 strategy
     mss2_enabled: bool = Field(default=True, env="MSS2_ENABLED")
+    mss2_min_spread_bps: float = Field(default=35.0, env="MSS2_MIN_SPREAD_BPS")
+    mss2_min_expected_profit_bps: float = Field(default=35.0, env="MSS2_MIN_EXPECTED_PROFIT_BPS")
+    mss2_max_adverse_selection_score: float = Field(default=0.65, env="MSS2_MAX_ADVERSE_SELECTION_SCORE")
+    mss2_min_fill_probability_proxy: float = Field(default=0.30, env="MSS2_MIN_FILL_PROBABILITY_PROXY")
+    mss2_max_queue_pressure: float = Field(default=0.75, env="MSS2_MAX_QUEUE_PRESSURE")
 
     # External data sources
     coingecko_api_key: str = Field(default="", env="COINGECKO_API_KEY")

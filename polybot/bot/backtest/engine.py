@@ -62,6 +62,16 @@ class BacktestConfig:
     roda_max_entry_price: float = 0.90
     roda_min_sources: int = 3
     roda_hold_window_hours: float = 12.0
+    roda_mode: str = "auto"
+    roda_divergence_min_edge: float = 0.06
+    roda_divergence_min_confidence: float = 0.60
+    roda_divergence_min_sources: int = 2
+    lch_max_wash_trading_score: float = 0.72
+    mss2_min_spread_bps: float = 35.0
+    mss2_min_expected_profit_bps: float = 35.0
+    mss2_max_adverse_selection_score: float = 0.65
+    mss2_min_fill_probability_proxy: float = 0.30
+    mss2_max_queue_pressure: float = 0.75
 
 
 @dataclass(slots=True)
@@ -213,19 +223,25 @@ class BacktestEngine:
 
         roda_signals: list[dict[str, Any]] = []
         if self.config.allow_roda:
+            divergence_sources_by_market = snapshot.metadata.get("divergence_sources_by_market")
             roda_signals = await detect_roda_signals(
                 markets,
                 news_api_key="",
                 news_articles_by_market=snapshot.news_by_market,
+                divergence_sources_by_market=divergence_sources_by_market if isinstance(divergence_sources_by_market, dict) else None,
                 config={
                     **cfg_common,
                     "roda_enabled": True,
+                    "roda_mode": self.config.roda_mode,
                     "roda_min_confidence": self.config.roda_min_confidence,
                     "roda_min_age_hours": self.config.roda_min_age_hours,
                     "roda_max_age_hours": self.config.roda_max_age_hours,
                     "roda_max_entry_price": self.config.roda_max_entry_price,
                     "roda_min_sources": self.config.roda_min_sources,
                     "roda_hold_window_hours": self.config.roda_hold_window_hours,
+                    "roda_divergence_min_edge": self.config.roda_divergence_min_edge,
+                    "roda_divergence_min_confidence": self.config.roda_divergence_min_confidence,
+                    "roda_divergence_min_sources": self.config.roda_divergence_min_sources,
                 },
                 now=snapshot.timestamp,
                 kelly_fraction=self.config.kelly_fraction,
@@ -250,7 +266,12 @@ class BacktestEngine:
             lch_signals = await self.lch_detector.detect_signals(
                 markets,
                 client=self.client,
-                config={**cfg_common, "lch_enabled": True, "lch_lookback_hours": self.config.lch_lookback_hours},
+                config={
+                    **cfg_common,
+                    "lch_enabled": True,
+                    "lch_lookback_hours": self.config.lch_lookback_hours,
+                    "lch_max_wash_trading_score": self.config.lch_max_wash_trading_score,
+                },
                 now=snapshot.timestamp,
                 kelly_fraction=self.config.kelly_fraction,
                 total_capital=current_equity,
@@ -261,7 +282,15 @@ class BacktestEngine:
             mss2_signals = await self.mss2_detector.detect_signals(
                 markets,
                 client=self.client,
-                config={**cfg_common, "mss2_enabled": True},
+                config={
+                    **cfg_common,
+                    "mss2_enabled": True,
+                    "mss2_min_spread_bps": self.config.mss2_min_spread_bps,
+                    "mss2_min_expected_profit_bps": self.config.mss2_min_expected_profit_bps,
+                    "mss2_max_adverse_selection_score": self.config.mss2_max_adverse_selection_score,
+                    "mss2_min_fill_probability_proxy": self.config.mss2_min_fill_probability_proxy,
+                    "mss2_max_queue_pressure": self.config.mss2_max_queue_pressure,
+                },
                 now=snapshot.timestamp,
                 kelly_fraction=self.config.kelly_fraction,
                 total_capital=current_equity,
