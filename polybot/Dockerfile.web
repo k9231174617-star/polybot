@@ -1,6 +1,6 @@
 FROM node:20-slim
 
-ENV NODE_ENV=production     CI=1
+ENV CI=1
 
 WORKDIR /app/polybot
 
