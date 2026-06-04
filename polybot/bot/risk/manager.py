@@ -21,6 +21,7 @@ class RiskManager:
         """Returns True if trading can continue (within daily loss limit)."""
         from datetime import datetime, timezone
         today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        today = today.replace(tzinfo=None)
 
         pool = await get_pool()
         async with pool.acquire() as conn:

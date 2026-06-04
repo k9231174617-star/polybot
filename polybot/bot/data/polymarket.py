@@ -1,7 +1,7 @@
 """Polymarket API client — fetches markets, prices, and order books."""
 import asyncio
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 from loguru import logger
@@ -114,6 +114,9 @@ class PolymarketClient:
         if raw.get("endDate"):
             try:
                 end_date = datetime.fromisoformat(raw["endDate"].replace("Z", "+00:00"))
+                # Store UTC as naive so asyncpg can bind it to TIMESTAMP columns.
+                if end_date.tzinfo is not None:
+                    end_date = end_date.astimezone(timezone.utc).replace(tzinfo=None)
             except Exception:
                 pass
 
