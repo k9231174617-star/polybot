@@ -1,0 +1,407 @@
+import { createContext, useContext, useState, type ReactNode } from "react";
+
+export type Lang = "en" | "ru";
+
+export const translations = {
+  en: {
+    // Nav
+    nav_dashboard: "Dashboard",
+    nav_markets: "Markets",
+    nav_positions: "Positions",
+    nav_signals: "Signals",
+    nav_trades: "Trades",
+    nav_risk: "Risk",
+    nav_settings: "Settings",
+
+    // Status
+    system_status: "SYSTEM STATUS",
+
+    // Dashboard page
+    equity_curve: "Equity Curve",
+    live_signals: "Live Signals",
+    open_positions: "Open Positions",
+    risk_summary: "Risk Summary",
+    system_log: "System Log",
+    no_pending_signals: "No pending signals",
+    no_open_positions: "No open positions",
+    no_log_entries: "No log entries",
+    active: "active",
+    trades_today: "trades today",
+    stat_portfolio: "Portfolio",
+    stat_total_pnl: "Total P&L",
+    stat_today_pnl: "Today P&L",
+    stat_positions: "Positions",
+    stat_signals: "Signals",
+    stat_win_rate: "Win Rate",
+    col_market: "Market",
+    col_side: "Side",
+    col_size: "Size",
+    col_entry: "Entry",
+    col_now: "Now",
+    col_pnl: "P&L",
+    risk_deployed: "Deployed",
+    risk_daily_remaining: "Daily P&L Limit Remaining",
+    risk_largest_position: "Largest Position",
+    risk_var: "VaR 95%",
+    risk_correlation: "Correlation Risk",
+
+    // Markets page
+    markets_title: "Market Scanner",
+    markets_search: "Search markets...",
+    col_mkt_price: "Mkt Price",
+    col_model_prob: "Model Prob",
+    col_edge: "Edge",
+    col_vol_24h: "Vol 24h",
+    col_liquidity: "Liquidity",
+    col_updated: "Updated",
+    no_markets: "No markets found",
+
+    // Positions page
+    positions_title: "Open Positions",
+    total_size: "Total Size",
+    unrealized_pnl: "Unrealized P&L",
+    col_unreal_pnl: "Unreal. P&L",
+    col_entry_edge: "Entry Edge",
+    col_cur_edge: "Cur. Edge",
+    col_opened: "Opened",
+    no_positions: "No open positions",
+
+    // Signals page
+    signals_title: "Edge Signals",
+    col_type: "Type",
+    col_dir: "Dir",
+    col_mkt: "Mkt",
+    col_model: "Model",
+    col_kelly: "Kelly $",
+    col_conf: "Conf.",
+    col_status: "Status",
+    col_detected: "Detected",
+    no_signals: "No signals found",
+
+    // Trades page
+    trades_title: "Trade History",
+    realized_pnl: "Realized P&L",
+    total_fees: "Total Fees",
+    trades_count: "Trades",
+    col_action: "Action",
+    col_price: "Price",
+    col_slippage: "Slippage",
+    col_fee: "Fee",
+    col_time: "Time",
+    no_trades: "No trades yet",
+
+    // Risk page
+    risk_title: "Risk Management",
+    capital_exposure: "Capital Exposure",
+    deployed_capital: "Deployed Capital",
+    risk_limits: "Risk Limits",
+    trade_statistics: "Trade Statistics",
+    var_title: "Value at Risk",
+    correlation_risk: "Correlation Risk",
+    total_capital: "Total Capital",
+    deployed: "Deployed",
+    free_capital: "Free Capital",
+    daily_loss_limit: "Daily Loss Limit",
+    daily_loss_remaining: "Daily Loss Remaining",
+    daily_loss_used: "Daily loss used",
+    max_single_position: "Max Single Position",
+    largest_position: "Largest Position",
+    open_positions_count: "Open Positions",
+    win_rate: "Win Rate",
+    avg_edge: "Avg Edge Captured",
+    best_trade: "Best Trade",
+    worst_trade: "Worst Trade",
+    sharpe_ratio: "Sharpe Ratio",
+    var_95: "VaR 95%",
+    var_desc: "Maximum expected loss at 95% confidence",
+    daily_pnl: "Daily P&L",
+    corr_risk_score: "Correlation Risk Score",
+    low_correlation: "Low correlation",
+    high_correlation: "High correlation",
+
+    // Settings page
+    settings_title: "Bot Configuration",
+    signal_detection: "Signal Detection",
+    edge_threshold: "Edge Threshold",
+    edge_threshold_desc: "Minimum model vs market edge % to generate a signal",
+    kelly_fraction: "Kelly Fraction",
+    kelly_fraction_desc: "Fraction of full Kelly criterion to bet. 25% = quarter-Kelly (recommended)",
+    scan_interval: "Scan Interval",
+    scan_interval_desc: "How often to scan all markets (seconds)",
+    risk_limits_section: "Risk Limits",
+    max_position: "Max Position Size",
+    max_position_desc: "Maximum % of total capital per market position",
+    daily_loss_limit_setting: "Daily Loss Limit",
+    daily_loss_limit_desc: "Bot stops trading if daily P&L falls below this % of capital",
+    max_correlated: "Max Correlated Exposure",
+    max_correlated_desc: "Max total exposure in correlated markets",
+    min_liquidity: "Min Liquidity (USD)",
+    min_liquidity_desc: "Minimum market liquidity to consider for trading",
+    execution_section: "Execution",
+    use_limit_orders: "Use Limit Orders",
+    use_limit_orders_desc: "Better price vs. risk of non-fill (vs. market orders)",
+    save_config: "SAVE CONFIGURATION",
+    saving: "SAVING...",
+    config_saved: "Config saved",
+    config_saved_desc: "Bot configuration updated successfully.",
+    config_error: "Error",
+    config_error_desc: "Failed to save configuration.",
+
+    // Paper Trading page
+    nav_paper: "Paper Trading",
+    paper_title: "Paper Trading",
+    paper_subtitle: "Virtual money · Real Polymarket prices",
+    paper_badge_on: "PAPER ON",
+    paper_badge_off: "PAPER OFF",
+    paper_capital: "Virtual Capital",
+    paper_portfolio: "Portfolio Value",
+    paper_cum_pnl: "Total P&L",
+    paper_return: "Return",
+    paper_trades: "Trades",
+    paper_open: "Open",
+    paper_wins: "Wins",
+    paper_losses: "Losses",
+    paper_win_rate: "Win Rate",
+    paper_avg_pnl: "Avg P&L / Trade",
+    paper_best: "Best Trade",
+    paper_worst: "Worst Trade",
+    paper_sharpe: "Sharpe",
+    paper_fees: "Total Fees",
+    paper_unrealized: "Unrealized",
+    paper_equity_curve: "Paper Equity Curve",
+    paper_positions: "Open Positions",
+    paper_history: "Trade History",
+    paper_by_type: "By Signal Type",
+    no_paper_positions: "No open paper positions",
+    no_paper_trades: "No paper trades yet",
+    paper_signal_type: "Signal Type",
+
+    // Settings paper section
+    paper_trading_section: "Paper Trading",
+    paper_trading_toggle: "Paper Trading Mode",
+    paper_trading_toggle_desc: "Trade with virtual money using real Polymarket prices. Safe way to validate strategy.",
+    paper_capital_setting: "Virtual Capital (USD)",
+    paper_capital_desc: "Starting capital for paper trading simulation",
+  },
+  ru: {
+    // Nav
+    nav_dashboard: "Дашборд",
+    nav_markets: "Рынки",
+    nav_positions: "Позиции",
+    nav_signals: "Сигналы",
+    nav_trades: "Сделки",
+    nav_risk: "Риски",
+    nav_settings: "Настройки",
+
+    // Status
+    system_status: "СТАТУС СИСТЕМЫ",
+
+    // Dashboard page
+    equity_curve: "Кривая капитала",
+    live_signals: "Активные сигналы",
+    open_positions: "Открытые позиции",
+    risk_summary: "Сводка рисков",
+    system_log: "Системный лог",
+    no_pending_signals: "Нет ожидающих сигналов",
+    no_open_positions: "Нет открытых позиций",
+    no_log_entries: "Нет записей в логе",
+    active: "активно",
+    trades_today: "сделок сегодня",
+    stat_portfolio: "Портфель",
+    stat_total_pnl: "Итог P&L",
+    stat_today_pnl: "P&L сегодня",
+    stat_positions: "Позиции",
+    stat_signals: "Сигналы",
+    stat_win_rate: "Винрейт",
+    col_market: "Рынок",
+    col_side: "Сторона",
+    col_size: "Объём",
+    col_entry: "Вход",
+    col_now: "Сейчас",
+    col_pnl: "P&L",
+    risk_deployed: "Развёрнуто",
+    risk_daily_remaining: "Остаток дневного лимита",
+    risk_largest_position: "Крупнейшая позиция",
+    risk_var: "VaR 95%",
+    risk_correlation: "Корреляционный риск",
+
+    // Markets page
+    markets_title: "Сканер рынков",
+    markets_search: "Поиск рынков...",
+    col_mkt_price: "Цена рынка",
+    col_model_prob: "Вер. модели",
+    col_edge: "Преимущество",
+    col_vol_24h: "Объём 24ч",
+    col_liquidity: "Ликвидность",
+    col_updated: "Обновлено",
+    no_markets: "Рынки не найдены",
+
+    // Positions page
+    positions_title: "Открытые позиции",
+    total_size: "Общий объём",
+    unrealized_pnl: "Нереализ. P&L",
+    col_unreal_pnl: "Нереализ. P&L",
+    col_entry_edge: "Преим. входа",
+    col_cur_edge: "Тек. преим.",
+    col_opened: "Открыто",
+    no_positions: "Нет открытых позиций",
+
+    // Signals page
+    signals_title: "Сигналы с преимуществом",
+    col_type: "Тип",
+    col_dir: "Напр.",
+    col_mkt: "Рынок",
+    col_model: "Модель",
+    col_kelly: "Келли $",
+    col_conf: "Уверен.",
+    col_status: "Статус",
+    col_detected: "Обнаружено",
+    no_signals: "Сигналы не найдены",
+
+    // Trades page
+    trades_title: "История сделок",
+    realized_pnl: "Реализ. P&L",
+    total_fees: "Комиссии",
+    trades_count: "Сделок",
+    col_action: "Действие",
+    col_price: "Цена",
+    col_slippage: "Проскальз.",
+    col_fee: "Комиссия",
+    col_time: "Время",
+    no_trades: "Сделок пока нет",
+
+    // Risk page
+    risk_title: "Управление рисками",
+    capital_exposure: "Экспозиция капитала",
+    deployed_capital: "Развёрнутый капитал",
+    risk_limits: "Лимиты рисков",
+    trade_statistics: "Статистика сделок",
+    var_title: "Стоимость под риском",
+    correlation_risk: "Корреляционный риск",
+    total_capital: "Общий капитал",
+    deployed: "Развёрнуто",
+    free_capital: "Свободный капитал",
+    daily_loss_limit: "Дневной лимит убытков",
+    daily_loss_remaining: "Остаток лимита убытков",
+    daily_loss_used: "Использовано дневного лимита",
+    max_single_position: "Макс. одна позиция",
+    largest_position: "Крупнейшая позиция",
+    open_positions_count: "Открытых позиций",
+    win_rate: "Винрейт",
+    avg_edge: "Среднее преимущество",
+    best_trade: "Лучшая сделка",
+    worst_trade: "Худшая сделка",
+    sharpe_ratio: "Коэф. Шарпа",
+    var_95: "VaR 95%",
+    var_desc: "Максимальный ожидаемый убыток с вероятностью 95%",
+    daily_pnl: "Дневной P&L",
+    corr_risk_score: "Индекс корреляционного риска",
+    low_correlation: "Низкая корреляция",
+    high_correlation: "Высокая корреляция",
+
+    // Settings page
+    settings_title: "Конфигурация бота",
+    signal_detection: "Обнаружение сигналов",
+    edge_threshold: "Порог преимущества",
+    edge_threshold_desc: "Минимальное расхождение модели и рынка для генерации сигнала",
+    kelly_fraction: "Доля Келли",
+    kelly_fraction_desc: "Доля от полного критерия Келли. 25% = четверть-Келли (рекомендуется)",
+    scan_interval: "Интервал сканирования",
+    scan_interval_desc: "Как часто сканировать все рынки (секунды)",
+    risk_limits_section: "Лимиты рисков",
+    max_position: "Макс. размер позиции",
+    max_position_desc: "Максимальный % от капитала на один рынок",
+    daily_loss_limit_setting: "Дневной лимит убытков",
+    daily_loss_limit_desc: "Бот останавливается, если дневной P&L падает ниже этого % от капитала",
+    max_correlated: "Макс. коррелированная экспозиция",
+    max_correlated_desc: "Максимальная суммарная экспозиция в коррелированных рынках",
+    min_liquidity: "Мин. ликвидность (USD)",
+    min_liquidity_desc: "Минимальная ликвидность рынка для рассмотрения",
+    execution_section: "Исполнение",
+    use_limit_orders: "Лимитные ордера",
+    use_limit_orders_desc: "Лучшая цена vs риск неисполнения (vs рыночные ордера)",
+    save_config: "СОХРАНИТЬ КОНФИГУРАЦИЮ",
+    saving: "СОХРАНЕНИЕ...",
+    config_saved: "Конфиг сохранён",
+    config_saved_desc: "Конфигурация бота успешно обновлена.",
+    config_error: "Ошибка",
+    config_error_desc: "Не удалось сохранить конфигурацию.",
+
+    // Paper Trading page
+    nav_paper: "Бумажная торговля",
+    paper_title: "Бумажная торговля",
+    paper_subtitle: "Виртуальные деньги · Реальные цены Polymarket",
+    paper_badge_on: "БУМАГА ВКЛ",
+    paper_badge_off: "БУМАГА ВЫКЛ",
+    paper_capital: "Виртуальный капитал",
+    paper_portfolio: "Стоимость портфеля",
+    paper_cum_pnl: "Итоговый P&L",
+    paper_return: "Доходность",
+    paper_trades: "Сделок",
+    paper_open: "Открытых",
+    paper_wins: "Успешных",
+    paper_losses: "Убыточных",
+    paper_win_rate: "Винрейт",
+    paper_avg_pnl: "Средний P&L / сделку",
+    paper_best: "Лучшая сделка",
+    paper_worst: "Худшая сделка",
+    paper_sharpe: "Шарп",
+    paper_fees: "Всего комиссий",
+    paper_unrealized: "Нереализованный",
+    paper_equity_curve: "Кривая бумажного капитала",
+    paper_positions: "Открытые позиции",
+    paper_history: "История сделок",
+    paper_by_type: "По типу сигнала",
+    no_paper_positions: "Нет открытых бумажных позиций",
+    no_paper_trades: "Бумажных сделок пока нет",
+    paper_signal_type: "Тип сигнала",
+
+    // Settings paper section
+    paper_trading_section: "Бумажная торговля",
+    paper_trading_toggle: "Режим бумажной торговли",
+    paper_trading_toggle_desc: "Торговля с виртуальными деньгами по реальным ценам Polymarket. Безопасный способ проверить стратегию.",
+    paper_capital_setting: "Виртуальный капитал (USD)",
+    paper_capital_desc: "Начальный капитал для симуляции бумажной торговли",
+  },
+} as const;
+
+export type TranslationKey = keyof typeof translations.en;
+
+type I18nContextType = {
+  lang: Lang;
+  setLang: (l: Lang) => void;
+  t: (key: TranslationKey) => string;
+};
+
+const I18nContext = createContext<I18nContextType>({
+  lang: "en",
+  setLang: () => {},
+  t: (key) => key,
+});
+
+export function I18nProvider({ children }: { children: ReactNode }) {
+  const stored = typeof window !== "undefined"
+    ? (localStorage.getItem("lang") as Lang | null)
+    : null;
+  const [lang, setLangState] = useState<Lang>(stored ?? "en");
+
+  const setLang = (l: Lang) => {
+    setLangState(l);
+    localStorage.setItem("lang", l);
+  };
+
+  const t = (key: TranslationKey): string =>
+    (translations[lang] as Record<string, string>)[key] ??
+    (translations.en as Record<string, string>)[key] ??
+    key;
+
+  return (
+    <I18nContext.Provider value={{ lang, setLang, t }}>
+      {children}
+    </I18nContext.Provider>
+  );
+}
+
+export function useI18n() {
+  return useContext(I18nContext);
+}

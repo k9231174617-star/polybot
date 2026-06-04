@@ -1,0 +1,975 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Polymarket Trading Bot API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: bot
+    description: Bot control and status
+  - name: markets
+    description: Market data and scanning
+  - name: positions
+    description: Open positions
+  - name: trades
+    description: Trade history
+  - name: signals
+    description: Edge signals
+  - name: risk
+    description: Risk metrics
+  - name: pnl
+    description: PnL analytics
+  - name: dashboard
+    description: Dashboard summary
+  - name: paper
+    description: Paper trading (virtual money, real prices)
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /bot/status:
+    get:
+      operationId: getBotStatus
+      tags: [bot]
+      summary: Get current bot status
+      responses:
+        "200":
+          description: Bot status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotStatus"
+
+  /bot/control:
+    post:
+      operationId: controlBot
+      tags: [bot]
+      summary: Start, stop or pause the bot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BotControlInput"
+      responses:
+        "200":
+          description: Updated status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotStatus"
+
+  /bot/config:
+    get:
+      operationId: getBotConfig
+      tags: [bot]
+      summary: Get bot configuration
+      responses:
+        "200":
+          description: Bot config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotConfig"
+    put:
+      operationId: updateBotConfig
+      tags: [bot]
+      summary: Update bot configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BotConfigInput"
+      responses:
+        "200":
+          description: Updated config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotConfig"
+
+  /markets:
+    get:
+      operationId: getMarkets
+      tags: [markets]
+      summary: List scanned markets
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, resolved, all]
+            default: active
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Markets list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Market"
+
+  /markets/{marketId}:
+    get:
+      operationId: getMarket
+      tags: [markets]
+      summary: Get single market details
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Market detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Market"
+
+  /positions:
+    get:
+      operationId: getPositions
+      tags: [positions]
+      summary: List open positions
+      responses:
+        "200":
+          description: Open positions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Position"
+
+  /positions/{positionId}:
+    get:
+      operationId: getPosition
+      tags: [positions]
+      summary: Get position details
+      parameters:
+        - name: positionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Position"
+
+  /signals:
+    get:
+      operationId: getSignals
+      tags: [signals]
+      summary: List detected edge signals
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, acted, dismissed, all]
+            default: pending
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Signals list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Signal"
+
+  /trades:
+    get:
+      operationId: getTrades
+      tags: [trades]
+      summary: Get trade history
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Trade history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trade"
+
+  /risk:
+    get:
+      operationId: getRiskMetrics
+      tags: [risk]
+      summary: Get current risk metrics
+      responses:
+        "200":
+          description: Risk metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RiskMetrics"
+
+  /pnl/summary:
+    get:
+      operationId: getPnlSummary
+      tags: [pnl]
+      summary: PnL summary stats
+      responses:
+        "200":
+          description: PnL summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PnlSummary"
+
+  /pnl/chart:
+    get:
+      operationId: getPnlChart
+      tags: [pnl]
+      summary: PnL chart data points over time
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [1d, 7d, 30d, all]
+            default: 7d
+      responses:
+        "200":
+          description: PnL chart data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PnlDataPoint"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Overall dashboard summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /paper/positions:
+    get:
+      operationId: getPaperPositions
+      tags: [paper]
+      summary: List paper trading positions
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, closed, all]
+            default: open
+      responses:
+        "200":
+          description: Paper positions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaperPosition"
+
+  /paper/trades:
+    get:
+      operationId: getPaperTrades
+      tags: [paper]
+      summary: List paper trading history
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        "200":
+          description: Paper trades
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaperTrade"
+
+  /paper/stats:
+    get:
+      operationId: getPaperStats
+      tags: [paper]
+      summary: Paper trading performance statistics
+      responses:
+        "200":
+          description: Paper stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaperStats"
+
+  /paper/chart:
+    get:
+      operationId: getPaperChart
+      tags: [paper]
+      summary: Paper portfolio equity curve
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [1d, 7d, 30d, all]
+            default: 7d
+      responses:
+        "200":
+          description: Paper chart data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaperDataPoint"
+
+  /logs:
+    get:
+      operationId: getLogs
+      tags: [bot]
+      summary: Get recent bot log entries
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: level
+          in: query
+          schema:
+            type: string
+            enum: [debug, info, warning, error, all]
+            default: all
+      responses:
+        "200":
+          description: Log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LogEntry"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    BotStatus:
+      type: object
+      properties:
+        state:
+          type: string
+          enum: [running, stopped, paused, error]
+        uptime_seconds:
+          type: ["integer", "null"]
+        markets_scanned:
+          type: integer
+        last_scan_at:
+          type: ["string", "null"]
+        error_message:
+          type: ["string", "null"]
+        pid:
+          type: ["integer", "null"]
+      required: [state, markets_scanned]
+
+    BotControlInput:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [start, stop, pause, resume]
+      required: [action]
+
+    BotConfig:
+      type: object
+      properties:
+        id:
+          type: integer
+        edge_threshold:
+          type: number
+          description: Minimum edge % to trigger a signal (e.g. 0.05 = 5%)
+        max_position_pct:
+          type: number
+          description: Max % of capital per market
+        daily_loss_limit_pct:
+          type: number
+        kelly_fraction:
+          type: number
+          description: Kelly criterion fraction (e.g. 0.25 for quarter-Kelly)
+        scan_interval_seconds:
+          type: integer
+        use_limit_orders:
+          type: boolean
+        min_liquidity_usd:
+          type: number
+        max_correlated_exposure_pct:
+          type: number
+        paper_trading:
+          type: boolean
+          description: Enable paper trading mode (virtual money, real prices)
+        paper_capital_usd:
+          type: number
+          description: Virtual capital for paper trading in USD
+        updated_at:
+          type: string
+      required:
+        - id
+        - edge_threshold
+        - max_position_pct
+        - daily_loss_limit_pct
+        - kelly_fraction
+        - scan_interval_seconds
+        - use_limit_orders
+        - min_liquidity_usd
+        - max_correlated_exposure_pct
+        - paper_trading
+        - paper_capital_usd
+
+    BotConfigInput:
+      type: object
+      properties:
+        edge_threshold:
+          type: number
+        max_position_pct:
+          type: number
+        daily_loss_limit_pct:
+          type: number
+        kelly_fraction:
+          type: number
+        scan_interval_seconds:
+          type: integer
+        use_limit_orders:
+          type: boolean
+        min_liquidity_usd:
+          type: number
+        max_correlated_exposure_pct:
+          type: number
+        paper_trading:
+          type: boolean
+        paper_capital_usd:
+          type: number
+
+    Market:
+      type: object
+      properties:
+        id:
+          type: string
+        question:
+          type: string
+        category:
+          type: string
+        market_price:
+          type: number
+          description: Current YES token price (0-1)
+        model_probability:
+          type: ["number", "null"]
+          description: Bot's estimated fair probability
+        edge:
+          type: ["number", "null"]
+          description: Edge = model_probability - market_price
+        volume_24h:
+          type: number
+        liquidity_usd:
+          type: number
+        end_date:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, resolved, cancelled]
+        last_updated:
+          type: string
+      required: [id, question, market_price, volume_24h, liquidity_usd, status, last_updated]
+
+    Position:
+      type: object
+      properties:
+        id:
+          type: integer
+        market_id:
+          type: string
+        market_question:
+          type: string
+        side:
+          type: string
+          enum: [YES, NO]
+        size_usd:
+          type: number
+        entry_price:
+          type: number
+        current_price:
+          type: number
+        unrealized_pnl:
+          type: number
+        unrealized_pnl_pct:
+          type: number
+        entry_edge:
+          type: number
+        current_edge:
+          type: ["number", "null"]
+        opened_at:
+          type: string
+        status:
+          type: string
+          enum: [open, closed, pending]
+      required:
+        - id
+        - market_id
+        - market_question
+        - side
+        - size_usd
+        - entry_price
+        - current_price
+        - unrealized_pnl
+        - unrealized_pnl_pct
+        - opened_at
+        - status
+
+    Signal:
+      type: object
+      properties:
+        id:
+          type: integer
+        market_id:
+          type: string
+        market_question:
+          type: string
+        signal_type:
+          type: string
+          enum: [price_discrepancy, cross_market_arb, momentum, sentiment_lag, implied_prob]
+        direction:
+          type: string
+          enum: [YES, NO]
+        market_price:
+          type: number
+        model_probability:
+          type: number
+        edge:
+          type: number
+        kelly_size_usd:
+          type: number
+        confidence:
+          type: number
+        status:
+          type: string
+          enum: [pending, acted, dismissed, expired]
+        detected_at:
+          type: string
+        acted_at:
+          type: ["string", "null"]
+      required:
+        - id
+        - market_id
+        - market_question
+        - signal_type
+        - direction
+        - market_price
+        - model_probability
+        - edge
+        - kelly_size_usd
+        - confidence
+        - status
+        - detected_at
+
+    Trade:
+      type: object
+      properties:
+        id:
+          type: integer
+        market_id:
+          type: string
+        market_question:
+          type: string
+        side:
+          type: string
+          enum: [YES, NO]
+        action:
+          type: string
+          enum: [buy, sell]
+        size_usd:
+          type: number
+        price:
+          type: number
+        slippage:
+          type: number
+        fee_usd:
+          type: number
+        realized_pnl:
+          type: ["number", "null"]
+        tx_hash:
+          type: ["string", "null"]
+        executed_at:
+          type: string
+        order_type:
+          type: string
+          enum: [market, limit]
+      required:
+        - id
+        - market_id
+        - market_question
+        - side
+        - action
+        - size_usd
+        - price
+        - executed_at
+        - order_type
+
+    RiskMetrics:
+      type: object
+      properties:
+        total_capital_usd:
+          type: number
+        deployed_capital_usd:
+          type: number
+        deployed_pct:
+          type: number
+        daily_pnl:
+          type: number
+        daily_pnl_pct:
+          type: number
+        daily_loss_limit_usd:
+          type: number
+        daily_loss_remaining_usd:
+          type: number
+        max_single_position_usd:
+          type: number
+        num_open_positions:
+          type: integer
+        largest_position_pct:
+          type: number
+        correlation_risk_score:
+          type: number
+        var_95:
+          type: number
+          description: Value at Risk 95%
+      required:
+        - total_capital_usd
+        - deployed_capital_usd
+        - deployed_pct
+        - daily_pnl
+        - daily_pnl_pct
+        - daily_loss_limit_usd
+        - daily_loss_remaining_usd
+        - num_open_positions
+
+    PnlSummary:
+      type: object
+      properties:
+        total_pnl:
+          type: number
+        total_pnl_pct:
+          type: number
+        realized_pnl:
+          type: number
+        unrealized_pnl:
+          type: number
+        win_rate:
+          type: number
+        avg_edge_captured:
+          type: number
+        total_trades:
+          type: integer
+        winning_trades:
+          type: integer
+        losing_trades:
+          type: integer
+        best_trade_pnl:
+          type: number
+        worst_trade_pnl:
+          type: number
+        sharpe_ratio:
+          type: ["number", "null"]
+      required:
+        - total_pnl
+        - total_pnl_pct
+        - realized_pnl
+        - unrealized_pnl
+        - win_rate
+        - total_trades
+
+    PnlDataPoint:
+      type: object
+      properties:
+        timestamp:
+          type: string
+        cumulative_pnl:
+          type: number
+        portfolio_value:
+          type: number
+      required: [timestamp, cumulative_pnl, portfolio_value]
+
+    DashboardSummary:
+      type: object
+      properties:
+        bot_state:
+          type: string
+          enum: [running, stopped, paused, error]
+        portfolio_value_usd:
+          type: number
+        total_pnl:
+          type: number
+        total_pnl_pct:
+          type: number
+        daily_pnl:
+          type: number
+        daily_pnl_pct:
+          type: number
+        open_positions_count:
+          type: integer
+        pending_signals_count:
+          type: integer
+        markets_scanned_today:
+          type: integer
+        trades_today:
+          type: integer
+        win_rate:
+          type: number
+        deployed_capital_pct:
+          type: number
+      required:
+        - bot_state
+        - portfolio_value_usd
+        - total_pnl
+        - total_pnl_pct
+        - daily_pnl
+        - daily_pnl_pct
+        - open_positions_count
+        - pending_signals_count
+        - markets_scanned_today
+        - trades_today
+
+    PaperPosition:
+      type: object
+      properties:
+        id:
+          type: integer
+        market_id:
+          type: string
+        market_question:
+          type: string
+        side:
+          type: string
+          enum: [YES, NO]
+        size_usd:
+          type: number
+        entry_price:
+          type: number
+        current_price:
+          type: number
+        unrealized_pnl:
+          type: number
+        unrealized_pnl_pct:
+          type: number
+        entry_edge:
+          type: number
+        signal_type:
+          type: string
+        confidence:
+          type: number
+        status:
+          type: string
+        opened_at:
+          type: string
+        closed_at:
+          type: ["string", "null"]
+      required:
+        - id
+        - market_id
+        - market_question
+        - side
+        - size_usd
+        - entry_price
+        - current_price
+        - unrealized_pnl
+        - unrealized_pnl_pct
+        - entry_edge
+        - signal_type
+        - confidence
+        - status
+        - opened_at
+
+    PaperTrade:
+      type: object
+      properties:
+        id:
+          type: integer
+        market_id:
+          type: string
+        market_question:
+          type: string
+        side:
+          type: string
+          enum: [YES, NO]
+        action:
+          type: string
+          enum: [buy, sell]
+        size_usd:
+          type: number
+        price:
+          type: number
+        slippage:
+          type: number
+        fee_usd:
+          type: number
+        realized_pnl:
+          type: ["number", "null"]
+        signal_type:
+          type: string
+        executed_at:
+          type: string
+      required:
+        - id
+        - market_id
+        - market_question
+        - side
+        - action
+        - size_usd
+        - price
+        - signal_type
+        - executed_at
+
+    PaperStats:
+      type: object
+      properties:
+        capital_usd:
+          type: number
+        cumulative_pnl:
+          type: number
+        portfolio_value:
+          type: number
+        total_return_pct:
+          type: number
+        total_trades:
+          type: integer
+        open_positions:
+          type: integer
+        wins:
+          type: integer
+        losses:
+          type: integer
+        win_rate:
+          type: number
+        avg_pnl_per_trade:
+          type: number
+        best_trade:
+          type: number
+        worst_trade:
+          type: number
+        total_fees:
+          type: number
+        unrealized_pnl:
+          type: number
+        by_signal_type:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              total:
+                type: integer
+              wins:
+                type: integer
+              pnl:
+                type: number
+              win_rate:
+                type: number
+      required:
+        - capital_usd
+        - cumulative_pnl
+        - portfolio_value
+        - total_return_pct
+        - total_trades
+        - open_positions
+        - wins
+        - losses
+        - win_rate
+
+    PaperDataPoint:
+      type: object
+      properties:
+        timestamp:
+          type: string
+        cumulative_pnl:
+          type: number
+        portfolio_value:
+          type: number
+        win_rate:
+          type: number
+        total_trades:
+          type: integer
+      required: [timestamp, cumulative_pnl, portfolio_value]
+
+    LogEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        level:
+          type: string
+          enum: [debug, info, warning, error]
+        module:
+          type: string
+        message:
+          type: string
+        details:
+          type: ["object", "null"]
+        created_at:
+          type: string
+      required: [id, level, module, message, created_at]
