@@ -34,8 +34,16 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         max_correlated_exposure_pct REAL NOT NULL DEFAULT 0.15,
         paper_trading BOOLEAN NOT NULL DEFAULT TRUE,
         paper_capital_usd REAL NOT NULL DEFAULT 1000,
+        roda_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        lch_enabled BOOLEAN NOT NULL DEFAULT TRUE,
         updated_at TIMESTAMP DEFAULT NOW()
     )
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS roda_enabled BOOLEAN NOT NULL DEFAULT TRUE
+    """,
+    """
+    ALTER TABLE bot_config ADD COLUMN IF NOT EXISTS lch_enabled BOOLEAN NOT NULL DEFAULT TRUE
     """,
     """
     CREATE TABLE IF NOT EXISTS markets (
@@ -181,10 +189,12 @@ DEFAULT_BOT_CONFIG_SQL = """
         min_liquidity_usd,
         max_correlated_exposure_pct,
         paper_trading,
-        paper_capital_usd
+        paper_capital_usd,
+        roda_enabled,
+        lch_enabled
     )
     SELECT
-        0.05, 0.05, 0.03, 0.25, 30, TRUE, 1000, 0.15, TRUE, 1000
+        0.05, 0.05, 0.03, 0.25, 30, TRUE, 1000, 0.15, TRUE, 1000, TRUE, TRUE
     WHERE NOT EXISTS (SELECT 1 FROM bot_config)
 """
 

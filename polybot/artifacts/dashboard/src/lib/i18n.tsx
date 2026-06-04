@@ -181,6 +181,11 @@ export const translations = {
     strategies_title: "Strategy Lab",
     strategies_subtitle: "Track realized performance, active signals, and open exposure across every strategy.",
     strategies_note: "Historical P&L is derived from paper trading; active queue data is from live signals.",
+    strategy_controls: "Strategy Controls",
+    strategy_roda: "RODA",
+    strategy_roda_desc: "Resolution-lag arbitrage on unresolved markets.",
+    strategy_lch: "LCH",
+    strategy_lch_desc: "Shock recovery and cascade reversal trades.",
     strategy_total_pnl: "Total P&L",
     best_strategy: "Best Strategy",
     strategy_leaderboard: "Leaderboard",
@@ -198,6 +203,8 @@ export const translations = {
     strategy_source_note: "Paper trades drive the historical ranking.",
     recent_signals: "recent signals",
     no_strategies: "No strategy data yet",
+    enabled: "enabled",
+    disabled: "disabled",
 
     // Settings paper section
     paper_trading_section: "Paper Trading",
@@ -384,6 +391,11 @@ export const translations = {
     strategies_title: "Стратегии",
     strategies_subtitle: "Отслеживай реализованный P&L, активные сигналы и открытую экспозицию по каждой стратегии.",
     strategies_note: "Исторический P&L строится по бумажной торговле; активная очередь берётся из live-сигналов.",
+    strategy_controls: "Управление стратегиями",
+    strategy_roda: "RODA",
+    strategy_roda_desc: "Арбитраж на задержке резолюции по нерезолвленным рынкам.",
+    strategy_lch: "LCH",
+    strategy_lch_desc: "Сделки на восстановлении после шока и каскада.",
     strategy_total_pnl: "Итоговый P&L",
     best_strategy: "Лучшая стратегия",
     strategy_leaderboard: "Таблица лидеров",
@@ -401,6 +413,8 @@ export const translations = {
     strategy_source_note: "Исторический рейтинг строится по бумажным сделкам.",
     recent_signals: "последние сигналы",
     no_strategies: "Пока нет данных по стратегиям",
+    enabled: "включено",
+    disabled: "выключено",
 
     // Settings paper section
     paper_trading_section: "Бумажная торговля",

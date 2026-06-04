@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetPaperStats,
   getGetPaperStatsQueryKey,
@@ -6,12 +7,16 @@ import {
   getGetSignalsQueryKey,
   useGetPaperPositions,
   getGetPaperPositionsQueryKey,
+  useGetBotConfig,
+  getGetBotConfigQueryKey,
+  useUpdateBotConfig,
 } from "@workspace/api-client-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { useI18n } from "@/lib/i18n";
-import { Layers3, TrendingUp, Activity, ShieldCheck, ArrowUpRight } from "lucide-react";
+import { Layers3, ShieldCheck, Sparkles } from "lucide-react";
 
 const SIGNAL_LABELS: Record<string, string> = {
   price_discrepancy: "Price Discrepancy",
@@ -57,6 +62,11 @@ function StatCard({ label, value, sub, positive }: {
 
 export default function Strategies() {
   const { t } = useI18n();
+  const queryClient = useQueryClient();
+  const updateConfig = useUpdateBotConfig();
+  const { data: botConfig, isLoading: configLoading } = useGetBotConfig({
+    query: { queryKey: getGetBotConfigQueryKey() }
+  });
   const { data: paperStats, isLoading: paperLoading } = useGetPaperStats({ query: { queryKey: getGetPaperStatsQueryKey() } });
   const { data: signals = [], isLoading: signalsLoading } = useGetSignals({ status: "all", limit: 200 }, {
     query: { queryKey: getGetSignalsQueryKey({ status: "all", limit: 200 }) }
@@ -132,6 +142,32 @@ export default function Strategies() {
     .sort((a, b) => new Date(String(b.detected_at)).getTime() - new Date(String(a.detected_at)).getTime())
     .slice(0, 20);
 
+  const strategyControls = [
+    {
+      key: "roda_enabled" as const,
+      name: t("strategy_roda"),
+      description: t("strategy_roda_desc"),
+      enabled: botConfig?.roda_enabled ?? true,
+    },
+    {
+      key: "lch_enabled" as const,
+      name: t("strategy_lch"),
+      description: t("strategy_lch_desc"),
+      enabled: botConfig?.lch_enabled ?? true,
+    },
+  ];
+
+  const onToggleStrategy = (key: "roda_enabled" | "lch_enabled", enabled: boolean) => {
+    updateConfig.mutate(
+      { data: { [key]: enabled } },
+      {
+        onSuccess: async () => {
+          await queryClient.invalidateQueries({ queryKey: getGetBotConfigQueryKey() });
+        },
+      },
+    );
+  };
+
   return (
     <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -146,6 +182,40 @@ export default function Strategies() {
         <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-primary/20 bg-primary/10 text-primary w-fit">
           {rows.length} {t("active")}
         </span>
+      </div>
+
+      <div className="bg-card border border-border rounded-md p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-primary" />
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("strategy_controls")}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {configLoading ? Array.from({ length: 2 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 rounded-md" />
+          )) : strategyControls.map((strategy) => (
+            <div key={strategy.key} className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+              <div className="min-w-0">
+                <div className="text-sm text-foreground">{strategy.name}</div>
+                <div className="mt-1 text-[10px] text-muted-foreground">{strategy.description}</div>
+                <div className={cn(
+                  "mt-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase",
+                  strategy.enabled
+                    ? "border-success/30 bg-success/10 text-success"
+                    : "border-muted-foreground/20 bg-muted/40 text-muted-foreground",
+                )}>
+                  {strategy.enabled ? t("enabled") : t("disabled")}
+                </div>
+              </div>
+              <Switch
+                checked={strategy.enabled}
+                onCheckedChange={(checked) => onToggleStrategy(strategy.key, checked)}
+                disabled={updateConfig.isPending}
+              />
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">

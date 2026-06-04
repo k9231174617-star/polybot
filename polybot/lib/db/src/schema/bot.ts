@@ -33,6 +33,8 @@ export const botConfigTable = pgTable("bot_config", {
   max_correlated_exposure_pct: real("max_correlated_exposure_pct").notNull().default(0.15),
   paper_trading: boolean("paper_trading").notNull().default(true),
   paper_capital_usd: real("paper_capital_usd").notNull().default(1000),
+  roda_enabled: boolean("roda_enabled").notNull().default(true),
+  lch_enabled: boolean("lch_enabled").notNull().default(true),
   updated_at: timestamp("updated_at").defaultNow(),
 });
 

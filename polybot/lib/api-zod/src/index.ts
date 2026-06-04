@@ -15,6 +15,8 @@ export const UpdateBotConfigBody = z.object({
   max_correlated_exposure_pct: z.number().optional(),
   paper_trading: z.boolean().optional(),
   paper_capital_usd: z.number().optional(),
+  roda_enabled: z.boolean().optional(),
+  lch_enabled: z.boolean().optional(),
 });
 
 export const GetBotStatusResponse = z.object({
@@ -40,6 +42,8 @@ export const GetBotConfigResponse = z.object({
   max_correlated_exposure_pct: z.number(),
   paper_trading: z.boolean(),
   paper_capital_usd: z.number(),
+  roda_enabled: z.boolean(),
+  lch_enabled: z.boolean(),
   updated_at: z.string().nullable().optional(),
 });
 

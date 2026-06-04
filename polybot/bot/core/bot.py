@@ -139,7 +139,7 @@ class PolymarketBot:
 
         roda_config = {
             **config,
-            "roda_enabled": settings.roda_enabled,
+            "roda_enabled": config.get("roda_enabled", settings.roda_enabled),
             "roda_min_confidence": settings.roda_min_confidence,
             "roda_min_age_hours": settings.roda_min_age_hours,
             "roda_max_age_hours": settings.roda_max_age_hours,
@@ -150,7 +150,7 @@ class PolymarketBot:
         }
         lch_config = {
             **config,
-            "lch_enabled": settings.lch_enabled,
+            "lch_enabled": config.get("lch_enabled", settings.lch_enabled),
             "lch_min_hours_to_resolve": settings.lch_min_hours_to_resolve,
             "lch_lookback_hours": settings.lch_lookback_hours,
             "lch_min_shock_magnitude": settings.lch_min_shock_magnitude,
