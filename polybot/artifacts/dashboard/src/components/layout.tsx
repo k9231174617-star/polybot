@@ -5,7 +5,7 @@ import { Play, Square, Pause, Activity, LineChart, Table2, Radar, ArrowLeftRight
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { useI18n, type Lang } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n";
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
@@ -34,26 +34,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
   const closeMobileNav = () => setMobileNavOpen(false);
 
-  const renderLangToggle = (compact = false) => (
-    <div className={cn("flex shrink-0 rounded-md border border-border overflow-hidden text-[10px] font-mono", compact && "w-full") }>
-      {(["en", "ru"] as Lang[]).map((l) => (
-        <button
-          key={l}
-          onClick={() => setLang(l)}
-          data-testid={`lang-${l}`}
-          className={cn(
-            "px-2 py-1 uppercase transition-colors",
-            compact && "flex-1 py-2",
-            lang === l
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-          )}
-        >
-          {l}
-        </button>
-      ))}
-    </div>
-  );
+  const toggleLang = () => setLang(lang === "en" ? "ru" : "en");
 
   return (
     <div className="flex min-h-screen w-full bg-background overflow-hidden selection:bg-primary/30">
@@ -61,18 +42,28 @@ export function Layout({ children }: { children: ReactNode }) {
         <SheetContent side="left" className="w-[88vw] max-w-sm p-0 bg-card">
           <div className="flex h-full flex-col">
             <SheetHeader className="border-b border-border px-4 py-4 text-left">
-              <SheetTitle className="flex items-center gap-2 font-mono text-base tracking-tight">
-                <div className="w-3 h-3 bg-primary rounded-sm animate-pulse shrink-0" />
-                POLYBOT.TERM
-              </SheetTitle>
-              <SheetDescription className="text-xs uppercase tracking-[0.24em]">
-                {t("system_status")}
-              </SheetDescription>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <SheetTitle className="flex items-center gap-2 font-mono text-base tracking-tight">
+                    <div className="w-3 h-3 bg-primary rounded-sm animate-pulse shrink-0" />
+                    POLYBOT.TERM
+                  </SheetTitle>
+                  <SheetDescription className="text-xs uppercase tracking-[0.24em]">
+                    {t("system_status")}
+                  </SheetDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 font-mono text-[10px]"
+                  onClick={toggleLang}
+                  data-testid="lang-toggle"
+                  aria-label="Toggle language"
+                >
+                  {lang.toUpperCase()}
+                </Button>
+              </div>
             </SheetHeader>
-
-            <div className="border-b border-border px-4 py-4">
-              {renderLangToggle(true)}
-            </div>
 
             <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-1 px-3">
               {navItems.map((item) => {
@@ -151,7 +142,16 @@ export function Layout({ children }: { children: ReactNode }) {
             <div className="w-3 h-3 bg-primary rounded-sm animate-pulse shrink-0" />
             <span className="truncate">POLYBOT.TERM</span>
           </div>
-          {renderLangToggle()}
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 shrink-0 font-mono text-[10px]"
+            onClick={toggleLang}
+            data-testid="lang-toggle"
+            aria-label="Toggle language"
+          >
+            {lang.toUpperCase()}
+          </Button>
         </div>
 
         <div className="flex-1 overflow-y-auto py-6 flex flex-col gap-1 px-3">
@@ -237,7 +237,6 @@ export function Layout({ children }: { children: ReactNode }) {
                 <span className="font-mono text-foreground">{botStatus?.state || "UNKNOWN"}</span>
               </div>
             </div>
-            {renderLangToggle(true)}
           </div>
         </header>
 
