@@ -56,9 +56,12 @@ const BOT_CONFIG_DEFAULTS = {
 };
 
 function normalizeBotConfig(row: Record<string, unknown> | undefined) {
+  const nonNull = Object.fromEntries(
+    Object.entries(row ?? {}).filter(([, value]) => value !== null && value !== undefined),
+  );
   return {
     ...BOT_CONFIG_DEFAULTS,
-    ...(row ?? {}),
+    ...nonNull,
   };
 }
 
